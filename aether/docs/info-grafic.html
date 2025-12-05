@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project AETHER: Cloud-Native Drone Ecosystem</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- Font Awesome for Icons (using CDN for standard icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Embedded Palette: Vibrant "Cyber-Blue & Neon"
+         Background: #0B1120 (Deep Navy)
+         Surface: #1E293B (Slate 800)
+         Primary: #38BDF8 (Sky Blue)
+         Secondary: #818CF8 (Indigo)
+         Accent: #F472B6 (Pink/Magenta)
+         Text: #F8FAFC (Slate 50)
+    -->
+
+    <style>
+        /* Chart Container Styling - MANDATORY */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* Constraint for large screens */
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B1120;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #38BDF8;
+            border-radius: 4px;
+        }
+
+        /* Diagram Connectors */
+        .connector-line {
+            width: 2px;
+            background-color: #38BDF8;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-[#0B1120] text-slate-50 font-sans antialiased selection:bg-[#F472B6] selection:text-white">
+
+    <!-- PLAN SUMMARY (Hidden Comment) -->
+    <!-- 
+    Narrative Plan:
+    1. Title/Hook: Introduce Project AETHER as a cutting-edge fusion of AWS, Temporal, and ArduPilot.
+    2. Architecture Overview: Visual breakdown of the stack (AWS Infrastructure, Temporal Orchestration, MAVLink).
+    3. The Why: Quantitative justification (Scalability, Reliability) using charts.
+    4. Workflow Engine: Deep dive into Temporal's role vs LangGraph.
+    5. Agent Intelligence: How MCP and LLMs fit in.
+    6. Roadmap: Phased approach for the team.
+    -->
+
+    <!-- PALETTE & NO SVG CONFIRMATION (Hidden Comment) -->
+    <!-- 
+    Palette: Cyber-Blue & Neon (#0B1120, #38BDF8, #818CF8, #F472B6)
+    CONFIRMATION: NO SVG GRAPHICS USED. NO MERMAID JS USED.
+    -->
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        <!-- Header Section -->
+        <header class="text-center mb-16">
+            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#38BDF8] via-[#818CF8] to-[#F472B6] mb-4">
+                PROJECT AETHER
+            </h1>
+            <h2 class="text-2xl md:text-3xl font-light text-slate-300 mb-6">
+                Cloud-Native Autonomous MAVLink Swarms
+            </h2>
+            <p class="max-w-3xl mx-auto text-lg text-slate-400">
+                A research initiative to engineer a generic MAVLink ecosystem on AWS. 
+                Leveraging <strong>Temporal</strong> for durable orchestration and <strong>LLM Agents (MCP)</strong> for autonomous exploration.
+            </p>
+        </header>
+
+        <!-- Section 1: The Vision (KPIs) -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            <!-- KPI 1 -->
+            <div class="bg-[#1E293B] rounded-xl shadow-lg p-6 border-t-4 border-[#38BDF8] hover:transform hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <i class="fa-solid fa-cloud-arrow-up text-4xl text-[#38BDF8] mb-4"></i>
+                    <h3 class="text-xl font-bold text-slate-200">Scalability</h3>
+                    <p class="text-4xl font-extrabold text-white mt-2">1,000+</p>
+                    <p class="text-sm text-slate-400 mt-1">Concurrent Drone Instances (SITL)</p>
+                </div>
+            </div>
+            <!-- KPI 2 -->
+            <div class="bg-[#1E293B] rounded-xl shadow-lg p-6 border-t-4 border-[#F472B6] hover:transform hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <i class="fa-solid fa-clock-rotate-left text-4xl text-[#F472B6] mb-4"></i>
+                    <h3 class="text-xl font-bold text-slate-200">Orchestration</h3>
+                    <p class="text-4xl font-extrabold text-white mt-2">99.99%</p>
+                    <p class="text-sm text-slate-400 mt-1">Workflow Durability (Temporal)</p>
+                </div>
+            </div>
+            <!-- KPI 3 -->
+            <div class="bg-[#1E293B] rounded-xl shadow-lg p-6 border-t-4 border-[#818CF8] hover:transform hover:scale-105 transition-transform duration-300">
+                <div class="text-center">
+                    <i class="fa-solid fa-brain text-4xl text-[#818CF8] mb-4"></i>
+                    <h3 class="text-xl font-bold text-slate-200">Intelligence</h3>
+                    <p class="text-4xl font-extrabold text-white mt-2">MCP</p>
+                    <p class="text-sm text-slate-400 mt-1">Model Context Protocol Integration</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Architecture & Stack -->
+        <section class="mb-20">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-white border-l-4 border-[#38BDF8] pl-4">Architecture Stack</h2>
+                <p class="mt-2 text-slate-400">
+                    Moving away from traditional monolithic GCS (Ground Control Stations), AETHER utilizes a decoupled, event-driven architecture hosted on AWS.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                
+                <!-- Architecture Diagram (HTML/CSS) -->
+                <!-- Goal: Relationships/Organize -> Justification: Custom Block Diagram using Tailwind Grid is best for showing system topology without SVG/Mermaid. -->
+                <div class="bg-[#1E293B] rounded-xl shadow-lg p-8 relative overflow-hidden">
+                    <h3 class="text-xl font-bold text-[#38BDF8] mb-6 text-center">System Topology</h3>
+                    
+                    <div class="flex flex-col items-center space-y-4">
+                        <!-- Layer 1: Intelligence -->
+                        <div class="w-full max-w-sm border-2 border-[#818CF8] bg-[#0B1120] p-4 rounded-lg text-center relative z-10">
+                            <h4 class="font-bold text-[#818CF8]">AI Layer (Bedrock/Claude)</h4>
+                            <p class="text-xs text-slate-400">Generates High-Level Goals & Interprets Data</p>
+                        </div>
+                        
+                        <!-- Arrow -->
+                        <div class="text-[#F472B6] text-xl">
+                            <i class="fa-solid fa-arrow-down"></i> <span class="text-xs ml-2 text-slate-400">Tool Calls (MCP)</span>
+                        </div>
+
+                        <!-- Layer 2: Orchestration -->
+                        <div class="w-full max-w-sm border-2 border-[#F472B6] bg-[#0B1120] p-4 rounded-lg text-center relative z-10">
+                            <h4 class="font-bold text-[#F472B6]">Temporal Cluster (AWS)</h4>
+                            <p class="text-xs text-slate-400">Workflow State Management, Retries, Timeouts</p>
+                        </div>
+
+                        <!-- Arrow -->
+                        <div class="text-[#38BDF8] text-xl">
+                            <i class="fa-solid fa-arrow-down"></i> <span class="text-xs ml-2 text-slate-400">MAVLink Commands</span>
+                        </div>
+
+                        <!-- Layer 3: Infrastructure -->
+                        <div class="w-full max-w-sm border-2 border-[#38BDF8] bg-[#0B1120] p-4 rounded-lg text-center relative z-10">
+                            <h4 class="font-bold text-[#38BDF8]">AWS ECS / EC2 Fleet</h4>
+                            <div class="grid grid-cols-2 gap-2 mt-2">
+                                <div class="bg-[#1E293B] p-2 rounded text-xs">Drone Instance 1 (SITL)</div>
+                                <div class="bg-[#1E293B] p-2 rounded text-xs">Drone Instance 2 (SITL)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Component Analysis Radar Chart -->
+                <!-- Goal: Compare -> Justification: Radar chart effectively compares the technical complexity vs business value of each component. -->
+                <div class="bg-[#1E293B] rounded-xl shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">Technical Complexity vs. Impact</h3>
+                    <p class="text-sm text-slate-400 mb-4">Assessing the engineering effort required versus the research value generated.</p>
+                    <div class="chart-container">
+                        <canvas id="techRadarChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Section 3: Why Temporal over LangGraph? -->
+        <section class="mb-20">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-white border-l-4 border-[#F472B6] pl-4">The Case for Temporal</h2>
+                <p class="mt-2 text-slate-400">
+                    Unlike LangGraph which is optimized for conversational state, Temporal provides <strong>Durable Execution</strong> essential for long-running physical tasks like drone flights.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                <!-- Comparison Bar Chart -->
+                <!-- Goal: Compare -> Justification: Bar chart to strictly compare features/metrics between Temporal and Standard Cron/LangGraph scripts. -->
+                <div class="bg-[#1E293B] rounded-xl shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">Reliability Metrics</h3>
+                    <div class="chart-container">
+                        <canvas id="reliabilityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Textual Breakdown -->
+                <div class="space-y-4">
+                    <div class="bg-[#0B1120] p-4 rounded-lg border-l-4 border-[#F472B6]">
+                        <h4 class="font-bold text-[#F472B6]">Infinite Retries</h4>
+                        <p class="text-sm text-slate-300">If a drone loses connection (telemetry gap), Temporal workflows wait rather than failing. Ideal for spotty MAVLink connections.</p>
+                    </div>
+                    <div class="bg-[#0B1120] p-4 rounded-lg border-l-4 border-[#F472B6]">
+                        <h4 class="font-bold text-[#F472B6]">Long-Running Processes</h4>
+                        <p class="text-sm text-slate-300">A "Search and Rescue" mission might take hours. Temporal persists state in DB, surviving worker crashes.</p>
+                    </div>
+                    <div class="bg-[#0B1120] p-4 rounded-lg border-l-4 border-[#F472B6]">
+                        <h4 class="font-bold text-[#F472B6]">Saga Pattern</h4>
+                        <p class="text-sm text-slate-300">Built-in compensation logic. If "Return to Launch" fails, trigger "Emergency Land" automatically.</p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Section 4: MCP Agent Workflow -->
+        <section class="mb-20">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-white border-l-4 border-[#818CF8] pl-4">The Agent Protocol (MCP)</h2>
+                <p class="mt-2 text-slate-400">
+                    Using the Model Context Protocol, we expose MAVLink commands as "Tools" to the LLM, allowing it to explore the environment autonomously.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Workflow Diagram (HTML/CSS) -->
+                <!-- Goal: Process -> Justification: A structured list/flow to show the step-by-step logic of an agent. -->
+                <div class="lg:col-span-1 bg-[#1E293B] rounded-xl shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-[#818CF8] mb-6">Agent Decision Loop</h3>
+                    <div class="space-y-0">
+                        <!-- Step 1 -->
+                        <div class="flex items-start">
+                            <div class="flex flex-col items-center mr-4">
+                                <div class="w-8 h-8 bg-[#818CF8] rounded-full flex items-center justify-center font-bold text-white">1</div>
+                                <div class="h-12 w-0.5 bg-slate-600 my-1"></div>
+                            </div>
+                            <div class="pb-6">
+                                <h4 class="text-white font-bold">Observation</h4>
+                                <p class="text-xs text-slate-400">Agent receives telemetry + camera frame.</p>
+                            </div>
+                        </div>
+                        <!-- Step 2 -->
+                        <div class="flex items-start">
+                            <div class="flex flex-col items-center mr-4">
+                                <div class="w-8 h-8 bg-[#38BDF8] rounded-full flex items-center justify-center font-bold text-white">2</div>
+                                <div class="h-12 w-0.5 bg-slate-600 my-1"></div>
+                            </div>
+                            <div class="pb-6">
+                                <h4 class="text-white font-bold">MCP Tool Selection</h4>
+                                <p class="text-xs text-slate-400">LLM chooses `mavlink_goto_location` or `mavlink_scan_area`.</p>
+                            </div>
+                        </div>
+                        <!-- Step 3 -->
+                        <div class="flex items-start">
+                            <div class="flex flex-col items-center mr-4">
+                                <div class="w-8 h-8 bg-[#F472B6] rounded-full flex items-center justify-center font-bold text-white">3</div>
+                            </div>
+                            <div>
+                                <h4 class="text-white font-bold">Execution & Feedback</h4>
+                                <p class="text-xs text-slate-400">Temporal executes command; returns result to LLM context.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Data Plot -->
+                <!-- Goal: Relationships -> Justification: 3D Scatter plot (or 2D) to visualize drone positions in a swarm. -->
+                <div class="lg:col-span-2 bg-[#1E293B] rounded-xl shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-white mb-2">Swarm Distribution Simulation</h3>
+                    <p class="text-sm text-slate-400 mb-4">Simulated telemetry data of 5 agents exploring a coordinate grid.</p>
+                    <div id="swarmPlot" class="w-full h-[400px]"></div> <!-- Plotly Container -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Research Roadmap -->
+        <section class="mb-12">
+             <div class="mb-8">
+                <h2 class="text-3xl font-bold text-white border-l-4 border-[#38BDF8] pl-4">Implementation Roadmap</h2>
+                <p class="mt-2 text-slate-400">A 4-week sprint plan to achieve a Minimum Viable Product (MVP).</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-[#1E293B] rounded-xl shadow-lg p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">Sprint Allocation</h3>
+                    <div class="chart-container">
+                        <canvas id="roadmapChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- Week 1 -->
+                    <div class="flex items-center p-4 bg-[#0B1120] rounded-lg border border-slate-700">
+                        <div class="text-3xl text-[#38BDF8] mr-4 font-bold">01</div>
+                        <div>
+                            <h4 class="font-bold text-white">Infrastructure Setup</h4>
+                            <p class="text-sm text-slate-400">Deploy Temporal Cluster on AWS. Containerize ArduPilot SITL.</p>
+                        </div>
+                    </div>
+                    <!-- Week 2 -->
+                    <div class="flex items-center p-4 bg-[#0B1120] rounded-lg border border-slate-700">
+                        <div class="text-3xl text-[#818CF8] mr-4 font-bold">02</div>
+                        <div>
+                            <h4 class="font-bold text-white">MAVLink Proxy</h4>
+                            <p class="text-sm text-slate-400">Build Python workers to translate Temporal activities to MAVLink.</p>
+                        </div>
+                    </div>
+                    <!-- Week 3 -->
+                    <div class="flex items-center p-4 bg-[#0B1120] rounded-lg border border-slate-700">
+                        <div class="text-3xl text-[#F472B6] mr-4 font-bold">03</div>
+                        <div>
+                            <h4 class="font-bold text-white">MCP Integration</h4>
+                            <p class="text-sm text-slate-400">Define MCP Tools for the LLM. Test basic "Explore" commands.</p>
+                        </div>
+                    </div>
+                     <!-- Week 4 -->
+                     <div class="flex items-center p-4 bg-[#0B1120] rounded-lg border border-slate-700">
+                        <div class="text-3xl text-white mr-4 font-bold">04</div>
+                        <div>
+                            <h4 class="font-bold text-white">Swarm Test</h4>
+                            <p class="text-sm text-slate-400">Launch 10 concurrent instances. Stress test orchestration.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- 1. UTILITY FUNCTIONS ---
+
+        // Label Wrapping Function (16 char limit)
+        function wrapLabels(labels) {
+            return labels.map(label => {
+                if (label.length <= 16) return label;
+                const words = label.split(' ');
+                const lines = [];
+                let currentLine = words[0];
+
+                for (let i = 1; i < words.length; i++) {
+                    if ((currentLine + " " + words[i]).length <= 16) {
+                        currentLine += " " + words[i];
+                    } else {
+                        lines.push(currentLine);
+                        currentLine = words[i];
+                    }
+                }
+                lines.push(currentLine);
+                return lines;
+            });
+        }
+
+        // Common Chart Options
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#F8FAFC' }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(11, 17, 32, 0.9)',
+                    titleColor: '#38BDF8',
+                    bodyColor: '#F8FAFC',
+                    borderColor: '#818CF8',
+                    borderWidth: 1,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const item = tooltipItems[0];
+                            let label = item.chart.data.labels[item.dataIndex];
+                            if (Array.isArray(label)) {
+                                return label.join(' ');
+                            } else {
+                                return label;
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                r: { // For Radar
+                    grid: { color: '#334155' },
+                    angleLines: { color: '#334155' },
+                    pointLabels: { color: '#94A3B8' },
+                    ticks: { backdropColor: 'transparent', color: '#94A3B8' }
+                }
+            }
+        };
+
+        // --- 2. CHART GENERATION ---
+
+        // Chart 1: Technical Radar
+        const ctxRadar = document.getElementById('techRadarChart').getContext('2d');
+        const radarLabels = wrapLabels(['Infrastructure Complexity', 'Scalability Potential', 'Research Novelty', 'Dev Experience', 'Cost Efficiency']);
+        new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: radarLabels,
+                datasets: [{
+                    label: 'AWS + Temporal + MCP',
+                    data: [8, 9, 10, 7, 8],
+                    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                    borderColor: '#38BDF8',
+                    pointBackgroundColor: '#38BDF8'
+                },
+                {
+                    label: 'Legacy GCS Setup',
+                    data: [4, 3, 2, 5, 6],
+                    backgroundColor: 'rgba(244, 114, 182, 0.2)',
+                    borderColor: '#F472B6',
+                    pointBackgroundColor: '#F472B6'
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 10,
+                        ticks: { display: false },
+                        grid: { color: '#334155' },
+                        pointLabels: { color: '#cbd5e1', font: { size: 12 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 2: Reliability Comparison (Bar)
+        const ctxBar = document.getElementById('reliabilityChart').getContext('2d');
+        const barLabels = wrapLabels(['Connection Drop Recovery', 'State Persistence', 'Concurrent Missions', 'Debuggability']);
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [{
+                    label: 'Temporal Workflows',
+                    data: [95, 100, 90, 85],
+                    backgroundColor: '#818CF8',
+                    borderRadius: 5
+                },
+                {
+                    label: 'Cron/Simple Scripts',
+                    data: [20, 10, 30, 40],
+                    backgroundColor: '#475569',
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    x: { ticks: { color: '#94A3B8' }, grid: { display: false } },
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100, 
+                        ticks: { color: '#94A3B8' }, 
+                        grid: { color: '#334155' },
+                        title: { display: true, text: 'Effectiveness Score (%)', color: '#94A3B8' }
+                    }
+                }
+            }
+        });
+
+        // Chart 3: Roadmap Allocation (Doughnut)
+        const ctxPie = document.getElementById('roadmapChart').getContext('2d');
+        const pieLabels = wrapLabels(['Infra Setup (AWS)', 'Python/MAVLink Logic', 'MCP/LLM Integration', 'Testing & Scaling']);
+        new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: pieLabels,
+                datasets: [{
+                    data: [25, 30, 30, 15],
+                    backgroundColor: [
+                        '#38BDF8', // Sky
+                        '#818CF8', // Indigo
+                        '#F472B6', // Pink
+                        '#1E293B'  // Dark
+                    ],
+                    borderColor: '#0B1120',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                ...commonOptions,
+                cutout: '60%',
+                plugins: {
+                    ...commonOptions.plugins,
+                    legend: { position: 'right', labels: { color: '#cbd5e1' } }
+                }
+            }
+        });
+
+        // --- 3. PLOTLY JS PLOT ---
+
+        // Swarm Plot (Simulation)
+        // Creating fake data for drone paths
+        const trace1 = {
+            x: [10, 15, 20, 25, 30],
+            y: [10, 20, 15, 25, 30],
+            mode: 'lines+markers',
+            name: 'Drone Alpha',
+            line: { color: '#38BDF8', width: 2 },
+            marker: { size: 6 }
+        };
+
+        const trace2 = {
+            x: [40, 35, 30, 25, 20],
+            y: [40, 35, 40, 45, 50],
+            mode: 'lines+markers',
+            name: 'Drone Beta',
+            line: { color: '#F472B6', width: 2 },
+            marker: { size: 6 }
+        };
+
+        const trace3 = {
+            x: [5, 10, 5, 10, 15],
+            y: [50, 45, 40, 35, 30],
+            mode: 'lines+markers',
+            name: 'Drone Gamma',
+            line: { color: '#818CF8', width: 2 },
+            marker: { size: 6 }
+        };
+
+        const layout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#cbd5e1' },
+            margin: { l: 40, r: 20, t: 20, b: 40 },
+            xaxis: { 
+                title: 'Longitude (Simulated)', 
+                gridcolor: '#334155', 
+                zerolinecolor: '#334155' 
+            },
+            yaxis: { 
+                title: 'Latitude (Simulated)', 
+                gridcolor: '#334155', 
+                zerolinecolor: '#334155' 
+            },
+            showlegend: true,
+            legend: { x: 0, y: 1 }
+        };
+
+        const config = { responsive: true, displayModeBar: false };
+
+        Plotly.newPlot('swarmPlot', [trace1, trace2, trace3], layout, config);
+
+    </script>
+</body>
+</html>
