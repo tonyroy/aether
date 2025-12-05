@@ -45,6 +45,7 @@ docker run -d \
     -p ${PORT_USER}:${PORT_USER} \
     -p ${PORT_BRIDGE}:${PORT_BRIDGE} \
     -e INSTANCE=${INSTANCE_ID} \
+    -e SYSID=${INSTANCE_ID} \
     -e LAT=${LAT} \
     -e LON=${LON} \
     -e SERIAL0="tcp:${PORT_USER}" \
