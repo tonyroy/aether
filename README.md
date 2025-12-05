@@ -30,4 +30,10 @@ Or simply ask me to "Run the drone simulation".
 *   **AWS IoT Core**: Handles secure MAVLink telemetry ingress and command egress.
 *   **AWS Fargate**: Runs ephemeral simulation "sidecars" for scalable fleet testing.
 
+## Development Standards
+
+*   **Infrastructure**: AWS CDK (Python)
+*   **Scripting**: Python 3
+*   **CI/CD**: GitHub Actions
+
 For a deep dive into the architecture, please read [aether/docs/overview.md](aether/docs/overview.md).

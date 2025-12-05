@@ -18,6 +18,7 @@ class MavlinkConnection:
         while not self.connected:
             try:
                 self.master = mavutil.mavlink_connection(self.connection_string, baud=self.baudrate)
+                logger.info(f"Connected to {self.connection_string}. Waiting for heartbeat...")
                 self.master.wait_heartbeat()
                 self.connected = True
                 logger.info(f"Heartbeat received from system {self.master.target_system} component {self.master.target_component}")
@@ -61,4 +62,20 @@ class MavlinkConnection:
     def takeoff(self, altitude):
         """Takeoff to specified altitude."""
         self.send_command_long(mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+
+    def request_data_stream(self):
+        """Requests data streams from the autopilot."""
+        if not self.master:
+            return
+        
+        # Request all data streams at 2 Hz
+        # MAV_DATA_STREAM_ALL = 0
+        self.master.mav.request_data_stream_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_DATA_STREAM_ALL,
+            2, # Rate in Hz
+            1  # Start (1 to start, 0 to stop)
+        )
+        logger.info("Requested all data streams at 2Hz")
 

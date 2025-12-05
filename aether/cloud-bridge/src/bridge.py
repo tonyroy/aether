@@ -1,13 +1,13 @@
 import logging
 import threading
 from .mavlink import MavlinkConnection
-from .mqtt import MqttConnection
+from .mavlink import MavlinkConnection
 from pymavlink import mavutil
 
 logger = logging.getLogger(__name__)
 
 class CloudBridge:
-    def __init__(self, mavlink: MavlinkConnection, mqtt: MqttConnection):
+    def __init__(self, mavlink: MavlinkConnection, mqtt):
         self.mavlink = mavlink
         self.mqtt = mqtt
         self.running = False
@@ -18,12 +18,18 @@ class CloudBridge:
 
         # Connect both ends
         self.mavlink.connect()
-        # Ensure certificates exist before connecting MQTT, or handle gracefully
-        try:
-             self.mqtt.connect()
-             self.mqtt.subscribe_command(self.on_command_received)
-        except Exception as e:
-            logger.error(f"Failed to connect to AWS IoT: {e}. Bridge will run in telemetry-only mode (logging locally).")
+        # Request telemetry explicitly
+        self.mavlink.request_data_stream()
+        
+        if self.mqtt:
+            try:
+                 self.mqtt.connect()
+                 self.mqtt.subscribe_command(self.on_command_received)
+            except Exception as e:
+                logger.error(f"Failed to connect to AWS IoT: {e}. Bridge will run in telemetry-only mode (logging locally).")
+                self.mqtt = None
+        else:
+            logger.info("No MQTT connection configured. Running in local Sim-Only mode.")
 
         # Start telemetry loop
         self.telemetry_loop()
@@ -35,6 +41,7 @@ class CloudBridge:
                 break
             
             msg_type = msg.get_type()
+            logger.debug(f"Received MAVLink message: {msg_type}")
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
@@ -49,7 +56,10 @@ class CloudBridge:
                     'vz': msg.vz / 100.0,
                     'hdg': msg.hdg / 100.0
                 }
-                self.mqtt.publish_telemetry(payload)
+                if self.mqtt:
+                    self.mqtt.publish_telemetry(payload)
+                else:
+                    logger.info(f"[SIM] Telemetry: {payload}")
             
             elif msg_type == 'ATTITUDE':
                 payload = {
@@ -58,15 +68,20 @@ class CloudBridge:
                     'pitch': msg.pitch,
                     'yaw': msg.yaw
                 }
-                self.mqtt.publish_telemetry(payload)
-
+                if self.mqtt:
+                    self.mqtt.publish_telemetry(payload)
+                # Reduce log spam for high freq attitude
+            
             elif msg_type == 'BATTERY_STATUS':
                 payload = {
                     'type': 'BATTERY_STATUS',
                     'voltage': msg.voltages[0] / 1000.0 if len(msg.voltages) > 0 else 0,
                     'remaining': msg.battery_remaining
                 }
-                self.mqtt.publish_telemetry(payload)
+                if self.mqtt:
+                    self.mqtt.publish_telemetry(payload)
+                else:
+                    logger.info(f"[SIM] Battery: {payload}")
 
     def on_command_received(self, command_data):
         cmd = command_data.get('command')
