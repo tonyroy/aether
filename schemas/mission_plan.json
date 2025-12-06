@@ -1,0 +1,97 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MissionPlan",
+    "description": "Complex mission configuration including flight paths and safety parameters.",
+    "type": "object",
+    "properties": {
+        "mission_id": {
+            "type": "string",
+            "description": "Unique identifier for this plan version."
+        },
+        "waypoints": {
+            "type": "array",
+            "description": "List of navigation waypoints (MAV_CMD_NAV_WAYPOINT).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lat": {
+                        "type": "number"
+                    },
+                    "lon": {
+                        "type": "number"
+                    },
+                    "alt": {
+                        "type": "number",
+                        "description": "Altitude in meters."
+                    },
+                    "hold_time": {
+                        "type": "number",
+                        "description": "Hold time in seconds (optional).",
+                        "default": 0
+                    }
+                },
+                "required": [
+                    "lat",
+                    "lon",
+                    "alt"
+                ]
+            }
+        },
+        "fence": {
+            "type": "object",
+            "description": "Geofence safety boundaries.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "max_altitude": {
+                    "type": "number"
+                },
+                "polygon": {
+                    "type": "array",
+                    "description": "List of points defining the inclusion zone.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "lat": {
+                                "type": "number"
+                            },
+                            "lon": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "lat",
+                            "lon"
+                        ]
+                    }
+                }
+            }
+        },
+        "rally_points": {
+            "type": "array",
+            "description": "Safe return points for RTL failsafes.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lat": {
+                        "type": "number"
+                    },
+                    "lon": {
+                        "type": "number"
+                    },
+                    "alt": {
+                        "type": "number",
+                        "description": "Loiter altitude."
+                    }
+                },
+                "required": [
+                    "lat",
+                    "lon",
+                    "alt"
+                ]
+            }
+        }
+    }
+}
