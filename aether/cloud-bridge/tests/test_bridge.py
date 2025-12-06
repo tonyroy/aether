@@ -72,7 +72,7 @@ def test_command_received_arm(bridge, mock_mavlink):
 def test_command_received_takeoff(bridge, mock_mavlink):
     cmd_data = {'command': 'TAKEOFF', 'params': [50]}
     bridge.on_command_received(cmd_data)
-    mock_mavlink.takeoff.assert_called_once_with(50)
+    mock_mavlink.guided_takeoff.assert_called_once_with(50)
 
 
 def test_mission_received(bridge, mock_mission_manager):

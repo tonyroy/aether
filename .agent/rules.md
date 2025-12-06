@@ -1,8 +1,20 @@
 # Agent## 1. Development Standards
-- **Infrastructure as Code**: All AWS infrastructure MUST be defined using AWS CDK (TypeScript or Python).
-- **Python**: Use Python 3.9+ for all scripts and backend services.
-- **Python Tooling**: Use `uv` for Python package management and virtual environments.
-- **CI/CD**: Use GitHub Actions for all build and deployment pipelines.
+
+- **AWS CDK**: Infrastructure as Code for AWS resources
+- **Python 3.12+**: Primary language for backend services
+- **GitHub Actions**: CI/CD pipeline automation
+- **TDD (Test-Driven Development)**: Write failing tests before implementation
+- **Type Hints**: Use type annotations for all function signatures
+- **Incremental Changes**: Small, testable commits
+- **Schema-First**: Define JSON schemas before implementation
+- **Asyncio**: Use Python asyncio for concurrent operations
+  - Command acknowledgment via Futures (non-blocking)
+  - Event-driven message processing
+  - Compatible with Temporal workflows
+- **Command Reliability**: All MAVLink commands must wait for COMMAND_ACK
+  - Use asyncio Futures to track pending commands
+  - Publish command status to MQTT for observability
+  - Timeout after 5 seconds with error logging
 
 ## 2. Scripting & Automation
 *   **Language**: **Python 3**

@@ -3,3 +3,4 @@ awsiotsdk>=1.21.4
 paho-mqtt>=1.6.1
 flake8>=6.0.0
 pytest>=7.0.0
+pytest-asyncio
