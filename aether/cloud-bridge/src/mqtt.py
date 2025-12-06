@@ -1,9 +1,10 @@
 import logging
 import json
 import asyncio
+import time
 import paho.mqtt.client as mqtt_paho
 from awscrt import io, mqtt, auth, http
-from awsiot import mqtt_connection_builder
+from awsiot import mqtt_connection_builder, iotshadow
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class AwsMqttConnection:
         self.root_ca_path = root_ca_path
         self.client_id = client_id
         self.connection = None
+        self.shadow_client = None
         self.loop = None  # Store event loop reference
 
     def connect(self):
@@ -40,6 +42,10 @@ class AwsMqttConnection:
         connect_future = self.connection.connect()
         connect_future.result()
         logger.info(f"Connected to AWS IoT at {self.endpoint}")
+        
+        # Initialize Shadow client
+        self.shadow_client = iotshadow.IotShadowClient(self.connection)
+        logger.info("Shadow client initialized")
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
@@ -61,6 +67,62 @@ class AwsMqttConnection:
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.info(f"Published status to {topic}: {status}")
+    
+    def sync_shadow(self, state: dict):
+        """Update Device Shadow with current drone state (reported)"""
+        if not self.shadow_client:
+            logger.warning("Shadow client not initialized")
+            return
+        
+        try:
+            request = iotshadow.UpdateShadowRequest(
+                thing_name=self.client_id,
+                state=iotshadow.ShadowState(
+                    reported=state
+                )
+            )
+            
+            future = self.shadow_client.publish_update_shadow(
+                request=request,
+                qos=mqtt.QoS.AT_LEAST_ONCE
+            )
+            future.result(timeout=2.0)
+            logger.debug(f"Updated shadow for {self.client_id}")
+        except Exception as e:
+            logger.error(f"Failed to update shadow: {e}")
+    
+    def subscribe_shadow_delta(self, callback):
+        """Subscribe to Shadow delta (desired state changes for commands)"""
+        if not self.shadow_client:
+            logger.warning("Shadow client not initialized")
+            return
+        
+        def on_shadow_delta_updated(delta):
+            try:
+                if delta.state:
+                    logger.info(f"Shadow delta received: {delta.state}")
+                    # Schedule async callback in event loop
+                    if asyncio.iscoroutinefunction(callback):
+                        asyncio.run_coroutine_threadsafe(callback(delta.state), self.loop)
+                    else:
+                        callback(delta.state)
+            except Exception as e:
+                logger.error(f"Error processing shadow delta: {e}")
+        
+        try:
+            request = iotshadow.ShadowDeltaUpdatedSubscriptionRequest(
+                thing_name=self.client_id
+            )
+            
+            future, _ = self.shadow_client.subscribe_to_shadow_delta_updated_events(
+                request=request,
+                qos=mqtt.QoS.AT_LEAST_ONCE,
+                callback=on_shadow_delta_updated
+            )
+            future.result(timeout=5.0)
+            logger.info(f"Subscribed to shadow delta for {self.client_id}")
+        except Exception as e:
+            logger.error(f"Failed to subscribe to shadow delta: {e}")
 
     def subscribe_command(self, callback):
         topic = f"mav/{self.client_id}/cmd"

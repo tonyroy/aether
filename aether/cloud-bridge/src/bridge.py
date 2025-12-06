@@ -24,6 +24,11 @@ class CloudBridge:
             try:
                 self.mqtt.connect()
                 self.mqtt.subscribe_command(self.on_command_received)
+                
+                # Subscribe to Shadow delta for commands via desired state
+                if hasattr(self.mqtt, 'subscribe_shadow_delta'):
+                    self.mqtt.subscribe_shadow_delta(self.on_shadow_delta)
+                
                 if self.mission_manager:
                     self.mqtt.subscribe_mission(self.on_mission_received)
             except Exception as e:
@@ -33,8 +38,14 @@ class CloudBridge:
         await self.telemetry_loop()
 
     async def telemetry_loop(self):
-        """Async telemetry processing loop."""
+        """Async telemetry processing loop with Shadow sync."""
+        import time
         logger.info("Starting async telemetry loop...")
+        
+        # State tracking for Shadow sync
+        last_shadow_update = 0
+        shadow_state = {}
+        
         while self.running:
             msg = self.mavlink.get_next_message()
             
@@ -71,6 +82,13 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"[SIM] Position: {payload}")
+                
+                # Track for Shadow
+                shadow_state['position'] = {
+                    'lat': msg.lat / 1e7,
+                    'lon': msg.lon / 1e7,
+                    'alt': msg.relative_alt / 1000.0
+                }
             
             elif msg_type == 'ATTITUDE':
                 payload = {
@@ -100,6 +118,10 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"[SIM] Heartbeat: Mode={mode_name}, Armed={payload['armed']}")
+                
+                # Track for Shadow
+                shadow_state['mode'] = mode_name
+                shadow_state['armed'] = payload['armed']
             
             elif msg_type == 'BATTERY_STATUS':
                 payload = {
@@ -111,6 +133,17 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"[SIM] Battery: {payload}")
+                
+                # Track for Shadow
+                shadow_state['battery'] = msg.battery_remaining
+            
+            # Update Shadow every 5 seconds with critical state
+            current_time = time.time()
+            if current_time - last_shadow_update > 5 and shadow_state:
+                if self.mqtt and hasattr(self.mqtt, 'sync_shadow'):
+                    self.mqtt.sync_shadow(shadow_state)
+                    logger.debug(f"Synced shadow: {shadow_state}")
+                last_shadow_update = current_time
 
     async def on_command_received(self, command_data):
         """Handle incoming command asynchronously and publish status.
@@ -161,7 +194,21 @@ class CloudBridge:
         logger.info(f"Command {cmd} {'succeeded' if success else 'failed'}")
 
 
-    def on_mission_received(self, mission_plan: dict):
-        logger.info("Received Mission Plan.")
+    async def on_mission_received(self, mission_data):
+        """Handle incoming mission plan."""
+        logger.info(f"Received mission plan with {len(mission_data.get('waypoints', []))} waypoints")
+        
         if self.mission_manager:
-            self.mission_manager.upload_mission(mission_plan)
+            success = self.mission_manager.upload_mission(mission_data)
+            if success:
+                logger.info("Mission uploaded successfully")
+            else:
+                logger.error("Mission upload failed")
+    
+    async def on_shadow_delta(self, desired_state):
+        """Handle Shadow delta (desired state changes for commands)."""
+        logger.info(f"Shadow delta received: {desired_state}")
+        
+        # If desired state contains a command, execute it
+        if 'command' in desired_state:
+            await self.on_command_received(desired_state)
