@@ -1,18 +1,65 @@
 #!/bin/bash
 set -e
 
-# Usage: ./spawn_drone.sh <INSTANCE_ID> [LAT] [LON] [--aws]
+# Default values
+INSTANCE_ID=1
+LAT=-35.363261
+LON=149.165230
+USE_AWS=false
 
-INSTANCE_ID=${1:-1}
-LAT=${2:--35.363261}
-LON=${3:-149.165230}
-USE_AWS=${4:-""}
+# Usage function
+usage() {
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  -i, --instance <id>   Drone Instance ID (default: 1)"
+    echo "  -l, --lat <val>       Latitude (default: -35.363261)"
+    echo "  -L, --lon <val>       Longitude (default: 149.165230)"
+    echo "  -a, --aws             Enable AWS IoT Core mode"
+    echo "  -h, --help            Show this help message"
+    echo ""
+    exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -i|--instance)
+            INSTANCE_ID="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        -l|--lat)
+            LAT="$2"
+            shift
+            shift
+            ;;
+        -L|--lon)
+            LON="$2"
+            shift
+            shift
+            ;;
+        -a|--aws)
+            USE_AWS=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            # Allow positional argument for instance ID for backward compatibility
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                INSTANCE_ID="$1"
+                shift
+            else
+                echo "Unknown option: $1"
+                usage
+            fi
+            ;;
+    esac
+done
 
 # Calculate Ports based on Instance ID
-# Base: 5760
-# Per Instance Offset: 10
-# Instance 1: 5770 (User), 5772 (Bridge)
-# Instance 2: 5780 (User), 5782 (Bridge)
 OFFSET=$((INSTANCE_ID * 10))
 PORT_USER=$((5760 + OFFSET))
 PORT_BRIDGE=$((5760 + OFFSET + 2))
@@ -29,12 +76,7 @@ echo "  Bridge Port: ${PORT_BRIDGE}"
 echo "  Containers: ${SITL_NAME}, ${BRIDGE_NAME}"
 
 # Network setup
-# We use the 'aether-network' (default is usually folder_default, but let's assume 'drones_default' from docker-compose)
-# Using 'host' network on Mac for simplicity might be tricky for multiple instances binding ports.
-# Better to use the bridge network created by docker-compose.
 NETWORK="drones_default"
-
-# Ensure network exists
 if [ -z "$(docker network ls -q -f name=${NETWORK})" ]; then
     echo "Creating network ${NETWORK}..."
     docker network create ${NETWORK}
@@ -59,7 +101,7 @@ docker run -d \
 echo "Launching Cloud Bridge..."
 
 # Check if using AWS IoT
-if [ "$USE_AWS" == "--aws" ]; then
+if [ "$USE_AWS" = true ]; then
     echo "  Mode: AWS IoT Core"
     
     # Check if certificates exist
@@ -69,7 +111,7 @@ if [ "$USE_AWS" == "--aws" ]; then
         exit 1
     fi
     
-    # AWS IoT endpoint (replace with your endpoint)
+    # AWS IoT endpoint (replace with your endpoint if needed)
     IOT_ENDPOINT="${IOT_ENDPOINT:-alddhtwebpu3w-ats.iot.ap-southeast-2.amazonaws.com}"
     
     docker run -d \
@@ -101,7 +143,7 @@ fi
 echo "Done! Drone ${INSTANCE_ID} is flying."
 echo "Connect MAVProxy: mavproxy.py --master=tcp:127.0.0.1:${PORT_USER} --console"
 
-if [ "$USE_AWS" == "--aws" ]; then
+if [ "$USE_AWS" = true ]; then
     echo "AWS IoT Topics:"
     echo "  Telemetry: mav/${DRONE_ID}/telemetry"
     echo "  Commands:  mav/${DRONE_ID}/cmd"
