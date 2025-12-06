@@ -114,3 +114,38 @@ def test_upload_full_mission(mock_mavlink):
     # Let's assume standard MAVLink 2 enum values.
     # If implementation uses 0, 1, 3 respectively.
 
+
+def test_convert_complex_waypoints(mock_mavlink):
+    """Verify Waypoints with Speed and ROI generate multiple MAVLink items."""
+    plan = {
+        "mission_id": "complex-001",
+        "waypoints": [
+            {
+                "lat": -35.1, "lon": 149.1, "alt": 20,
+                "speed": 15, # FAST
+                "roi": {"lat": -35.2, "lon": 149.2, "alt": 0} # Look at point
+            }
+        ]
+    }
+    
+    manager = MissionManager(mock_mavlink)
+    items = manager.convert_plan_to_items(plan)
+    
+    # Expectation:
+    # 1. DO_CHANGE_SPEED (if speed > 0)
+    # 2. DO_SET_ROI
+    # 3. NAV_WAYPOINT
+    
+    assert len(items) == 3
+    
+    # Check Item 1: Speed
+    assert items[0].command == 178 # MAV_CMD_DO_CHANGE_SPEED
+    assert items[0].param2 == 15   # Speed m/s
+    
+    # Check Item 2: ROI
+    assert items[1].command == 201 # MAV_CMD_DO_SET_ROI
+    assert items[1].x == -35.2     # ROI Lat
+    
+    # Check Item 3: Waypoint
+    assert items[2].command == 16  # MAV_CMD_NAV_WAYPOINT
+    assert items[2].x == -35.1     # Waypoint Lat

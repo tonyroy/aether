@@ -28,6 +28,29 @@
                         "type": "number",
                         "description": "Hold time in seconds (optional).",
                         "default": 0
+                    },
+                    "speed": {
+                        "type": "number",
+                        "description": "Flight speed to this waypoint in m/s."
+                    },
+                    "roi": {
+                        "type": "object",
+                        "description": "Region of Interest (Look at this point).",
+                        "properties": {
+                            "lat": {
+                                "type": "number"
+                            },
+                            "lon": {
+                                "type": "number"
+                            },
+                            "alt": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "lat",
+                            "lon"
+                        ]
                     }
                 },
                 "required": [

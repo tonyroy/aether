@@ -12,7 +12,8 @@
                 "TAKEOFF",
                 "LAND",
                 "RTL",
-                "GUIDED_MODE"
+                "GUIDED_MODE",
+                "START_MISSION"
             ]
         },
         "params": {
