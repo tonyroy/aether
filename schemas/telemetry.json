@@ -1,0 +1,76 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "DroneTelemetry",
+    "description": "Telemetry data sent from the drone to the cloud.",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": [
+                "GLOBAL_POSITION_INT",
+                "ATTITUDE",
+                "BATTERY_STATUS",
+                "HEARTBEAT"
+            ]
+        },
+        "timestamp": {
+            "type": "number",
+            "description": "Unix timestamp of when the message was received by the bridge."
+        },
+        "lat": {
+            "type": "number",
+            "description": "Latitude in degrees (WGS84)."
+        },
+        "lon": {
+            "type": "number",
+            "description": "Longitude in degrees (WGS84)."
+        },
+        "alt": {
+            "type": "number",
+            "description": "Altitude (AMSL) in meters."
+        },
+        "relative_alt": {
+            "type": "number",
+            "description": "Altitude relative to home in meters."
+        },
+        "vx": {
+            "type": "number",
+            "description": "Ground X speed (Latitude, positive north) in m/s."
+        },
+        "vy": {
+            "type": "number",
+            "description": "Ground Y speed (Longitude, positive east) in m/s."
+        },
+        "vz": {
+            "type": "number",
+            "description": "Ground Z speed (Altitude, positive down) in m/s."
+        },
+        "hdg": {
+            "type": "number",
+            "description": "Vehicle heading (yaw angle) in degrees, 0..360."
+        },
+        "roll": {
+            "type": "number",
+            "description": "Roll angle in radians."
+        },
+        "pitch": {
+            "type": "number",
+            "description": "Pitch angle in radians."
+        },
+        "yaw": {
+            "type": "number",
+            "description": "Yaw angle in radians."
+        },
+        "voltage": {
+            "type": "number",
+            "description": "Battery voltage in volts."
+        },
+        "remaining": {
+            "type": "number",
+            "description": "Remaining battery percentage (0-100)."
+        }
+    },
+    "required": [
+        "type"
+    ]
+}

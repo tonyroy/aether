@@ -1,0 +1,33 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "DroneCommand",
+    "description": "Commands sent from the cloud (LLM/Temporal) to the drone.",
+    "type": "object",
+    "properties": {
+        "command": {
+            "type": "string",
+            "enum": [
+                "ARM",
+                "DISARM",
+                "TAKEOFF",
+                "LAND",
+                "RTL",
+                "GUIDED_MODE"
+            ]
+        },
+        "params": {
+            "type": "array",
+            "items": {
+                "type": "number"
+            },
+            "description": "Optional parameters for the command (e.g., [altitude] for TAKEOFF)."
+        },
+        "request_id": {
+            "type": "string",
+            "description": "Unique ID for tracking command execution (for Temporal/MCP)."
+        }
+    },
+    "required": [
+        "command"
+    ]
+}
