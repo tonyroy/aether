@@ -1,11 +1,12 @@
 #!/bin/bash
 set -e
 
-# Usage: ./spawn_drone.sh <INSTANCE_ID> [LAT] [LON]
+# Usage: ./spawn_drone.sh <INSTANCE_ID> [LAT] [LON] [--aws]
 
 INSTANCE_ID=${1:-1}
 LAT=${2:--35.363261}
 LON=${3:-149.165230}
+USE_AWS=${4:-""}
 
 # Calculate Ports based on Instance ID
 # Base: 5760
@@ -19,6 +20,7 @@ PORT_BRIDGE=$((5760 + OFFSET + 2))
 # Container Names
 SITL_NAME="sitl-drone-${INSTANCE_ID}"
 BRIDGE_NAME="cloud-bridge-${INSTANCE_ID}"
+DRONE_ID="drone-${INSTANCE_ID}"
 
 echo "Starting Drone Instance ${INSTANCE_ID}..."
 echo "  Location: ${LAT}, ${LON}"
@@ -26,7 +28,7 @@ echo "  User Port (MAVProxy): ${PORT_USER}"
 echo "  Bridge Port: ${PORT_BRIDGE}"
 echo "  Containers: ${SITL_NAME}, ${BRIDGE_NAME}"
 
-# 1. Start SITL Drone
+# Network setup
 # We use the 'aether-network' (default is usually folder_default, but let's assume 'drones_default' from docker-compose)
 # Using 'host' network on Mac for simplicity might be tricky for multiple instances binding ports.
 # Better to use the bridge network created by docker-compose.
@@ -38,6 +40,7 @@ if [ -z "$(docker network ls -q -f name=${NETWORK})" ]; then
     docker network create ${NETWORK}
 fi
 
+# 1. Start SITL Drone
 echo "Launching SITL..."
 docker run -d \
     --name ${SITL_NAME} \
@@ -54,16 +57,55 @@ docker run -d \
 
 # 2. Start Cloud Bridge
 echo "Launching Cloud Bridge..."
-docker run -d \
-    --name ${BRIDGE_NAME} \
-    --network ${NETWORK} \
-    -e LOG_LEVEL="INFO" \
-    -e MAVLINK_CONNECTION="tcp:${SITL_NAME}:${PORT_BRIDGE}" \
-    -e IOT_CLIENT_ID="drone-${INSTANCE_ID}" \
-    -e LOCAL_BROKER_HOST="mosquitto" \
-    -e LOCAL_BROKER_PORT="1883" \
-    aether-cloud-bridge
+
+# Check if using AWS IoT
+if [ "$USE_AWS" == "--aws" ]; then
+    echo "  Mode: AWS IoT Core"
+    
+    # Check if certificates exist
+    if [ ! -d "certs/${DRONE_ID}" ]; then
+        echo "ERROR: Certificates not found for ${DRONE_ID}"
+        echo "Run: cd aether/infra && python scripts/provision_drone.py ${DRONE_ID}"
+        exit 1
+    fi
+    
+    # AWS IoT endpoint (replace with your endpoint)
+    IOT_ENDPOINT="${IOT_ENDPOINT:-alddhtwebpu3w-ats.iot.ap-southeast-2.amazonaws.com}"
+    
+    docker run -d \
+        --name ${BRIDGE_NAME} \
+        --network ${NETWORK} \
+        -v "$(pwd)/certs:/app/certs:ro" \
+        -e LOG_LEVEL="INFO" \
+        -e MAVLINK_CONNECTION="tcp:${SITL_NAME}:${PORT_BRIDGE}" \
+        -e IOT_CLIENT_ID="${DRONE_ID}" \
+        -e IOT_ENDPOINT="${IOT_ENDPOINT}" \
+        -e IOT_CERT="/app/certs/${DRONE_ID}/certificate.pem" \
+        -e IOT_KEY="/app/certs/${DRONE_ID}/private.key" \
+        -e IOT_ROOT_CA="/app/certs/AmazonRootCA1.pem" \
+        aether-cloud-bridge
+else
+    echo "  Mode: Local MQTT (mosquitto)"
+    
+    docker run -d \
+        --name ${BRIDGE_NAME} \
+        --network ${NETWORK} \
+        -e LOG_LEVEL="INFO" \
+        -e MAVLINK_CONNECTION="tcp:${SITL_NAME}:${PORT_BRIDGE}" \
+        -e IOT_CLIENT_ID="${DRONE_ID}" \
+        -e LOCAL_BROKER_HOST="mosquitto" \
+        -e LOCAL_BROKER_PORT="1883" \
+        aether-cloud-bridge
+fi
 
 echo "Done! Drone ${INSTANCE_ID} is flying."
 echo "Connect MAVProxy: mavproxy.py --master=tcp:127.0.0.1:${PORT_USER} --console"
-echo "Watch Telemetry:  docker exec -it mosquitto mosquitto_sub -t 'mav/drone-${INSTANCE_ID}/#'"
+
+if [ "$USE_AWS" == "--aws" ]; then
+    echo "AWS IoT Topics:"
+    echo "  Telemetry: mav/${DRONE_ID}/telemetry"
+    echo "  Commands:  mav/${DRONE_ID}/cmd"
+    echo "  Status:    mav/${DRONE_ID}/status"
+else
+    echo "Watch Telemetry: docker exec -it mosquitto mosquitto_sub -t 'mav/${DRONE_ID}/#'"
+fi
