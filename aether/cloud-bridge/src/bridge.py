@@ -25,9 +25,8 @@ class CloudBridge:
                 self.mqtt.connect()
                 self.mqtt.subscribe_command(self.on_command_received)
                 
-                # Subscribe to Shadow delta for commands via desired state
-                if hasattr(self.mqtt, 'subscribe_shadow_delta'):
-                    self.mqtt.subscribe_shadow_delta(self.on_shadow_delta)
+                # Shadow is used for STATE REPORTING ONLY
+                # Commands come via MQTT topic to ensure firmware has priority
                 
                 if self.mission_manager:
                     self.mqtt.subscribe_mission(self.on_mission_received)
@@ -204,11 +203,3 @@ class CloudBridge:
                 logger.info("Mission uploaded successfully")
             else:
                 logger.error("Mission upload failed")
-    
-    async def on_shadow_delta(self, desired_state):
-        """Handle Shadow delta (desired state changes for commands)."""
-        logger.info(f"Shadow delta received: {desired_state}")
-        
-        # If desired state contains a command, execute it
-        if 'command' in desired_state:
-            await self.on_command_received(desired_state)
