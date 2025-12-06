@@ -219,6 +219,38 @@ class MavlinkConnection:
         
         return takeoff_success
     
+    async def rtl_async(self) -> bool:
+        """Return to Launch (async with acknowledgment).
+        
+        Commands the drone to return to its launch position.
+        """
+        success = await self.send_command_long_async(
+            mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH
+        )
+        
+        if success:
+            logger.info("RTL command accepted")
+        else:
+            logger.error("RTL command failed")
+        
+        return success
+    
+    async def land_async(self) -> bool:
+        """Land at current position (async with acknowledgment).
+        
+        Commands the drone to land at its current position.
+        """
+        success = await self.send_command_long_async(
+            mavutil.mavlink.MAV_CMD_NAV_LAND
+        )
+        
+        if success:
+            logger.info("LAND command accepted")
+        else:
+            logger.error("LAND command failed")
+        
+        return success
+    
     def takeoff(self, altitude):
         """Takeoff to specified altitude at current position (for mission use).
         

@@ -117,6 +117,10 @@ class CloudBridge:
             elif cmd == 'TAKEOFF':
                 alt = params[0] if len(params) > 0 else 10
                 success = await self.mavlink.guided_takeoff_async(alt)
+            elif cmd == 'RTL':
+                success = await self.mavlink.rtl_async()
+            elif cmd == 'LAND':
+                success = await self.mavlink.land_async()
             elif cmd == 'START_MISSION':
                 self.mavlink.start_mission()
                 success = True
