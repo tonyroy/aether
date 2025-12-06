@@ -1,8 +1,6 @@
 import logging
-import threading
+import asyncio
 from .mavlink import MavlinkConnection
-from .mavlink import MavlinkConnection
-from pymavlink import mavutil
 
 logger = logging.getLogger(__name__)
 
@@ -13,55 +11,36 @@ class CloudBridge:
         self.mission_manager = mission_manager
         self.running = False
 
-    def start(self):
-        logger.info("Starting Cloud Bridge...")
+    async def start(self):
+        """Start the bridge (async version)."""
+        logger.info("Starting Cloud Bridge (async mode)...")
         self.running = True
-
+        
         # Connect both ends
         self.mavlink.connect()
-        # Request telemetry explicitly
         self.mavlink.request_data_stream()
         
         if self.mqtt:
             try:
-                 self.mqtt.connect()
-                 self.mqtt.subscribe_command(self.on_command_received)
-                 # Also subscribe to Mission Plan topic
-                 if self.mission_manager:
-                     # Assuming mqtt has a generic subscribe method or we add a specific one
-                     # For now, let's assume we can reuse subscribe_command or add subscribe_mission
-                     # But checking mqtt.py, it likely only has subscribe_command.
-                     # We should add subscribe_topic to mqtt.py or just use subscribe_command logic.
-                     # However, to be clean, let's assume we add subscribe_mission to mqtt.py later
-                     # or use a generic one. 
-                     # Let's rely on mqtt.py having generic features or just add a new method.
-                     # Since I can't see mqtt.py right now, I'll assume subscribe_command takes a topic?
-                     # No, previous usage imply it defaults to a command topic.
-                     
-                     # Let's add subscription to mission topic. 
-                     # We need to update MQTT class too for this.
-                     # For now, let's call self.mqtt.subscribe_mission(self.on_mission_received)
-                     # expecting we add it.
-                     if hasattr(self.mqtt, 'subscribe_mission'):
-                        self.mqtt.subscribe_mission(self.on_mission_received)
-                     else:
-                        logger.warning("MQTT class does not have subscribe_mission method.")
-
+                self.mqtt.connect()
+                self.mqtt.subscribe_command(self.on_command_received)
+                if self.mission_manager:
+                    self.mqtt.subscribe_mission(self.on_mission_received)
             except Exception as e:
-                logger.error(f"Failed to connect to AWS IoT: {e}. Bridge will run in telemetry-only mode (logging locally).")
-                self.mqtt = None
-        else:
-            logger.info("No MQTT connection configured. Running in local Sim-Only mode.")
+                logger.error(f"MQTT connection or subscription failed: {e}")
+        
+        # Run telemetry loop
+        await self.telemetry_loop()
 
-        # Start telemetry loop
-        self.telemetry_loop()
-
-
-    def telemetry_loop(self):
-        logger.info("Starting telemetry loop...")
-        for msg in self.mavlink.get_messages():
-            if not self.running:
-                break
+    async def telemetry_loop(self):
+        """Async telemetry processing loop."""
+        logger.info("Starting async telemetry loop...")
+        while self.running:
+            msg = self.mavlink.get_next_message()
+            
+            if not msg:
+                await asyncio.sleep(0.001)  # Yield control, prevent busy loop
+                continue
             
             msg_type = msg.get_type()
             logger.debug(f"Received MAVLink message: {msg_type}")
@@ -77,12 +56,11 @@ class CloudBridge:
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
-
                 payload = {
                     'type': 'GLOBAL_POSITION_INT',
                     'lat': msg.lat / 1e7,
                     'lon': msg.lon / 1e7,
-                    'alt': msg.alt / 1000.0, # mm to m
+                    'alt': msg.alt / 1000.0,
                     'relative_alt': msg.relative_alt / 1000.0,
                     'vx': msg.vx / 100.0,
                     'vy': msg.vy / 100.0,
@@ -92,7 +70,7 @@ class CloudBridge:
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
-                    logger.info(f"[SIM] Telemetry: {payload}")
+                    logger.info(f"[SIM] Position: {payload}")
             
             elif msg_type == 'ATTITUDE':
                 payload = {
@@ -103,7 +81,8 @@ class CloudBridge:
                 }
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
-                # Reduce log spam for high freq attitude
+                else:
+                    logger.info(f"[SIM] Attitude: {payload}")
             
             elif msg_type == 'BATTERY_STATUS':
                 payload = {
@@ -116,12 +95,11 @@ class CloudBridge:
                 else:
                     logger.info(f"[SIM] Battery: {payload}")
 
-    def on_command_received(self, command_data):
-        """Handle incoming command and publish status.
+    async def on_command_received(self, command_data):
+        """Handle incoming command asynchronously and publish status.
         
-        Uses async commands internally but wraps in asyncio.run() for sync compatibility.
+        Uses proper async/await for non-blocking command execution.
         """
-        import asyncio
         import time
         
         cmd = command_data.get('command')
@@ -129,19 +107,19 @@ class CloudBridge:
         
         logger.info(f"Executing command: {cmd} with params {params}")
         
-        # Execute command asynchronously and get result
+        # Execute command asynchronously with await
         success = False
         try:
             if cmd == 'ARM':
-                success = asyncio.run(self.mavlink.arm_async())
+                success = await self.mavlink.arm_async()
             elif cmd == 'DISARM':
-                success = asyncio.run(self.mavlink.disarm_async())
+                success = await self.mavlink.disarm_async()
             elif cmd == 'TAKEOFF':
                 alt = params[0] if len(params) > 0 else 10
-                success = asyncio.run(self.mavlink.guided_takeoff_async(alt))
+                success = await self.mavlink.guided_takeoff_async(alt)
             elif cmd == 'START_MISSION':
                 self.mavlink.start_mission()
-                success = True  # START_MISSION doesn't have async version yet
+                success = True
             else:
                 logger.warning(f"Unknown command: {cmd}")
                 success = False
@@ -163,14 +141,6 @@ class CloudBridge:
 
 
     def on_mission_received(self, mission_plan: dict):
-        """Handler for incoming mission plan JSON."""
         logger.info("Received Mission Plan.")
         if self.mission_manager:
-            try:
-                self.mission_manager.upload_mission(mission_plan)
-                logger.info("Mission Plan uploaded successfully.")
-            except Exception as e:
-                logger.error(f"Failed to upload mission: {e}")
-        else:
-            logger.warning("Received Mission Plan but no MissionManager configured.")
-
+            self.mission_manager.upload_mission(mission_plan)

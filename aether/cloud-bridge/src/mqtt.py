@@ -1,5 +1,6 @@
 import logging
 import json
+import asyncio
 import paho.mqtt.client as mqtt_paho
 from awscrt import io, mqtt, auth, http
 from awsiot import mqtt_connection_builder
@@ -66,7 +67,11 @@ class AwsMqttConnection:
             try:
                 decoded = json.loads(payload.decode('utf-8'))
                 logger.info(f"Received command on {topic}: {decoded}")
-                callback(decoded)
+                # Schedule async callback in event loop
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(decoded))
+                else:
+                    callback(decoded)
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
 
@@ -85,7 +90,11 @@ class AwsMqttConnection:
             try:
                 decoded = json.loads(payload.decode('utf-8'))
                 logger.info(f"Received mission plan on {topic}")
-                callback(decoded)
+                # Schedule async callback in event loop
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(decoded))
+                else:
+                    callback(decoded)
             except Exception as e:
                 logger.error(f"Error processing mission plan: {e}")
 
@@ -145,7 +154,11 @@ class LocalMqttConnection:
             try:
                 decoded = json.loads(msg.payload.decode('utf-8'))
                 logger.info(f"Received command on {msg.topic}: {decoded}")
-                callback(decoded)
+                # Schedule async callback in event loop
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(decoded))
+                else:
+                    callback(decoded)
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
 
@@ -160,11 +173,14 @@ class LocalMqttConnection:
         def on_message(client, userdata, msg):
             try:
                 decoded = json.loads(msg.payload.decode('utf-8'))
-                logger.info(f"Received mission on {msg.topic}")
-                callback(decoded)
+                logger.info(f"Received mission on {msg.topic}: {decoded}")
+                # Schedule async callback in event loop
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(decoded))
+                else:
+                    callback(decoded)
             except Exception as e:
                 logger.error(f"Error processing mission: {e}")
 
         self.client.message_callback_add(topic, on_message)
         self.client.subscribe(topic)
-

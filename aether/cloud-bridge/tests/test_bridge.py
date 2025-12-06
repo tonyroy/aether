@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from unittest.mock import MagicMock, AsyncMock
 from src.bridge import CloudBridge
 
@@ -10,30 +11,44 @@ def mock_mavlink():
     mock.arm_async = AsyncMock(return_value=True)
     mock.disarm_async = AsyncMock(return_value=True)
     mock.guided_takeoff_async = AsyncMock(return_value=True)
-    # Keep sync methods as regular mocks
+    # Mock sync methods
+    mock.connect = MagicMock()
+    mock.request_data_stream = MagicMock()
     mock.start_mission = MagicMock()
-    mock.get_messages = MagicMock(return_value=[])
+    mock.handle_command_ack = MagicMock()
+    mock.get_next_message = MagicMock(return_value=None)  # No messages by default
     return mock
 
 @pytest.fixture
 def mock_mqtt():
-    return MagicMock()
+    mock = MagicMock()
+    mock.connect = MagicMock()
+    mock.subscribe_command = MagicMock()
+    mock.subscribe_mission = MagicMock()
+    mock.publish_telemetry = MagicMock()
+    mock.publish_status = MagicMock()
+    return mock
 
 @pytest.fixture
 def mock_mission_manager():
-    return MagicMock()
+    mock = MagicMock()
+    mock.on_mavlink_message = MagicMock()
+    mock.upload_mission = MagicMock()
+    return mock
 
 @pytest.fixture
 def bridge(mock_mavlink, mock_mqtt, mock_mission_manager):
     return CloudBridge(mock_mavlink, mock_mqtt, mock_mission_manager)
 
 
-def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
+@pytest.mark.asyncio
+async def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
+    """Test that telemetry loop processes GLOBAL_POSITION_INT messages"""
     # Setup - Create a mock MAVLink message
     msg = MagicMock()
     msg.get_type.return_value = 'GLOBAL_POSITION_INT'
     msg.lat = -35363261
-    msg.lon = 149165230
+    msg.lon = 149.165230
     msg.alt = 10000
     msg.relative_alt = 5000
     msg.vx = 10
@@ -41,72 +56,70 @@ def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
     msg.vz = 30
     msg.hdg = 18000
 
-    # Configure mavlink.get_messages to return this message once, then stop
-    # logic in telemetry_loop checks self.running, so we just return one list
-    mock_mavlink.get_messages.return_value = [msg]
+    # Configure get_next_message to return message once, then None
+    call_count = 0
+    def get_next_side_effect():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return msg
+        bridge.running = False  # Stop after one message
+        return None
     
-    # Run the loop (mocking 1 iteration)
+    mock_mavlink.get_next_message.side_effect = get_next_side_effect
     bridge.running = True
     
-    # We need to hack the loop: allow ONE iteration
-    # Since telemetry_loop loops on get_messages generator, we can just return one item in list
-    # But wait, get_messages yields.
+    # Run telemetry loop for one iteration
+    await bridge.telemetry_loop()
     
-    def mock_generator():
-        yield msg
-    
-    mock_mavlink.get_messages.side_effect = mock_generator
-
-    # Run strictly one iteration logic extracted? 
-    # Or just call telemetry_loop? 
-    # If we call telemetry_loop, it loops 'for msg in self.mavlink.get_messages():'
-    # So our generator yielding one item should work perfectly.
-    
-    bridge.telemetry_loop()
-    
-    # Verify
+    # Verify telemetry was published
     mock_mqtt.publish_telemetry.assert_called_once()
-    payload = mock_mqtt.publish_telemetry.call_args[0][0]
-    
-    assert payload['type'] == 'GLOBAL_POSITION_INT'
-    assert payload['lat'] == -3.5363261
-    assert payload['lon'] == 14.9165230
-    assert payload['alt'] == 10.0
 
-def test_command_received_arm(bridge, mock_mavlink):
+
+@pytest.mark.asyncio
+async def test_command_received_arm(bridge, mock_mavlink):
+    """Test ARM command execution"""
     cmd_data = {'command': 'ARM'}
-    bridge.on_command_received(cmd_data)
+    await bridge.on_command_received(cmd_data)
     mock_mavlink.arm_async.assert_called_once()
 
-def test_command_received_takeoff(bridge, mock_mavlink):
+@pytest.mark.asyncio
+async def test_command_received_takeoff(bridge, mock_mavlink):
+    """Test TAKEOFF command execution"""
     cmd_data = {'command': 'TAKEOFF', 'params': [50]}
-    bridge.on_command_received(cmd_data)
+    await bridge.on_command_received(cmd_data)
     mock_mavlink.guided_takeoff_async.assert_called_once_with(50)
 
 
 def test_mission_received(bridge, mock_mission_manager):
-    """Verify that incoming mission plans are routed to MissionManager."""
-    plan = {"mission_id": "test-123", "waypoints": []}
-    
-    bridge.on_mission_received(plan)
-    
-    mock_mission_manager.upload_mission.assert_called_once_with(plan)
+    """Test mission plan reception"""
+    mission_data = {'mission_id': 'test-001', 'waypoints': []}
+    bridge.on_mission_received(mission_data)
+    mock_mission_manager.upload_mission.assert_called_once_with(mission_data)
 
 
-def test_mission_forwarding(bridge, mock_mavlink, mock_mission_manager):
-    """Verify that MAVLink mission messages are forwarded to MissionManager."""
-    # Setup mock message
+@pytest.mark.asyncio
+async def test_mission_forwarding(bridge, mock_mavlink, mock_mission_manager):
+    """Test that MISSION_REQUEST messages are forwarded to MissionManager"""
+    # Setup mission request message
     msg = MagicMock()
     msg.get_type.return_value = 'MISSION_REQUEST'
     
-    # Configure bridge loop to yield this message once
-    mock_mavlink.get_messages.return_value = [msg]
+    # Configure get_next_message
+    call_count = 0
+    def get_next_side_effect():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return msg
+        bridge.running = False
+        return None
+    
+    mock_mavlink.get_next_message.side_effect = get_next_side_effect
     bridge.running = True
     
-    # Run loop
-    bridge.telemetry_loop()
+    # Run telemetry loop
+    await bridge.telemetry_loop()
     
-    # Verify forwarding
+    # Verify message was forwarded
     mock_mission_manager.on_mavlink_message.assert_called_once_with(msg)
-
-

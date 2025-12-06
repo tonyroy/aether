@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 import argparse
 from src.mavlink import MavlinkConnection
 from src.mqtt import AwsMqttConnection, LocalMqttConnection
@@ -10,7 +11,7 @@ from src.mission import MissionManager
 log_level = os.environ.get('LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description='Aether Cloud Bridge')
     parser.add_argument('--mavlink', default=os.environ.get('MAVLINK_CONNECTION', 'udp:127.0.0.1:14550'), help='MAVLink connection string')
     parser.add_argument('--client_id', default=os.environ.get('IOT_CLIENT_ID', 'test-drone'), help='AWS IoT Thing Name')
@@ -52,10 +53,10 @@ def main():
     else:
         logging.warning("No AWS Endpoint or Local Broker provided. Running in standalone mode.")
 
-    # Initialize and START
+    # Initialize and START (async)
     bridge = CloudBridge(mav, mqtt, mission_manager)
-    bridge.start()
+    await bridge.start()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

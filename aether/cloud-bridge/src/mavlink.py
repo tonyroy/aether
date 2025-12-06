@@ -39,6 +39,12 @@ class MavlinkConnection:
             if msg:
                 yield msg
 
+    def get_next_message(self):
+        """Get next message (non-blocking, returns None if no message available)."""
+        if not self.master:
+            return None
+        return self.master.recv_match(blocking=False)
+
     @property
     def mav(self):
         if self.master:
