@@ -57,6 +57,7 @@ echo "Launching Cloud Bridge..."
 docker run -d \
     --name ${BRIDGE_NAME} \
     --network ${NETWORK} \
+    -e LOG_LEVEL="INFO" \
     -e MAVLINK_CONNECTION="tcp:${SITL_NAME}:${PORT_BRIDGE}" \
     -e IOT_CLIENT_ID="drone-${INSTANCE_ID}" \
     -e LOCAL_BROKER_HOST="mosquitto" \

@@ -53,13 +53,23 @@ class MissionManager:
                     param1=0 # Param1 is actually ROI Mode in some versions, but usually 0 for Location
                 ))
 
-            # 3. REQUIRED: Waypoint
-            # MAV_CMD_NAV_WAYPOINT = 16
+            # 3. REQUIRED: Waypoint or Command
+            # Default to MAV_CMD_NAV_WAYPOINT (16)
+            cmd = 16
+            
+            wp_type = wp.get('type', 'WAYPOINT')
+            if wp_type == 'TAKEOFF':
+                cmd = 22 # MAV_CMD_NAV_TAKEOFF
+            elif wp_type == 'LAND':
+                cmd = 21 # MAV_CMD_NAV_LAND
+            elif wp_type == 'RTL':
+                cmd = 20 # MAV_CMD_NAV_RETURN_TO_LAUNCH
+
             item = MissionItem(
-                command=16,
-                x=wp['lat'],
-                y=wp['lon'],
-                z=wp['alt'],
+                command=cmd,
+                x=wp.get('lat', 0),
+                y=wp.get('lon', 0),
+                z=wp.get('alt', 0),
                 param1=wp.get('hold_time', 0)
             )
             items.append(item)
@@ -132,7 +142,7 @@ class MissionManager:
             items = self.current_mission_items.get(mission_type)
             if items and seq < len(items):
                 item = items[seq]
-                logger.debug(f"Sending MISSION_ITEM {seq} type {mission_type}")
+                logger.debug(f"Sending MISSION_ITEM {seq} type {mission_type} command {item.command}")
                 
                 # Send item
                 # Using mission_item_int_send for better precision

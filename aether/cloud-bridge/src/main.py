@@ -7,7 +7,8 @@ from src.bridge import CloudBridge
 from src.mission import MissionManager
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_level = os.environ.get('LOG_LEVEL', 'DEBUG').upper()
+logging.basicConfig(level=getattr(logging, log_level), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
     parser = argparse.ArgumentParser(description='Aether Cloud Bridge')

@@ -123,9 +123,12 @@ class CloudBridge:
             self.mavlink.disarm()
         elif cmd == 'TAKEOFF':
             alt = params[0] if len(params) > 0 else 10
-            self.mavlink.takeoff(alt)
+            self.mavlink.guided_takeoff(alt)
+        elif cmd == 'START_MISSION':
+            self.mavlink.start_mission()
         else:
             logger.warning(f"Unknown command: {cmd}")
+
 
     def on_mission_received(self, mission_plan: dict):
         """Handler for incoming mission plan JSON."""

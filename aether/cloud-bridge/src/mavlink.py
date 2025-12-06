@@ -77,10 +77,72 @@ class MavlinkConnection:
     def disarm(self):
         """Disarms the drone."""
         self.send_command_long(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0)
+
+    def set_mode(self, mode):
+        """Set flight mode (e.g., 'GUIDED', 'AUTO', 'STABILIZE')."""
+        if not self.master:
+            raise RuntimeError("MAVLink not connected")
+        
+        # Get mode number from string
+        mode_mapping = self.master.mode_mapping()
+        if mode.upper() not in mode_mapping:
+            raise ValueError(f"Unknown mode: {mode}. Available: {list(mode_mapping.keys())}")
+        
+        mode_id = mode_mapping[mode.upper()]
+        self.master.set_mode(mode_id)
+        logger.info(f"Set mode to {mode.upper()}")
+
+    def guided_takeoff(self, altitude):
+        """Simple takeoff in GUIDED mode (like MAVProxy 'takeoff' command).
+        
+        This is the recommended method for simple takeoff operations.
+        Automatically switches to GUIDED mode, arms, and takes off.
+        """
+        # Switch to GUIDED mode
+        self.set_mode('GUIDED')
+        
+        # Arm
+        self.arm()
+        
+        # Send simple takeoff command (works in GUIDED mode)
+        # In GUIDED mode, ArduCopter accepts simple parameters
+        self.send_command_long(
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            0,        # param1: pitch (ignored for copter)
+            0,        # param2: empty
+            0,        # param3: empty
+            0,        # param4: yaw (0 = current)
+            0,        # param5: lat (0 = current in GUIDED)
+            0,        # param6: lon (0 = current in GUIDED)
+            altitude  # param7: altitude
+        )
+        logger.info(f"Initiated GUIDED takeoff to {altitude}m")
     
     def takeoff(self, altitude):
-        """Takeoff to specified altitude."""
-        self.send_command_long(mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        """Takeoff to specified altitude at current position (for mission use).
+        
+        This version uses NaN for lat/lon to explicitly indicate current position.
+        Use guided_takeoff() for simple interactive takeoff operations.
+        """
+        # MAV_CMD_NAV_TAKEOFF parameters:
+        # param1: Minimum pitch (copter: ignored)
+        # param2: Empty
+        # param3: Empty
+        # param4: Yaw angle (NaN = use current yaw)
+        # param5: Latitude (NaN = current position)
+        # param6: Longitude (NaN = current position)
+        # param7: Altitude (meters)
+        import math
+        self.send_command_long(
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            0,              # param1: pitch (ignored for copter)
+            0,              # param2: empty
+            0,              # param3: empty
+            math.nan,       # param4: yaw (NaN = current)
+            math.nan,       # param5: lat (NaN = current position)
+            math.nan,       # param6: lon (NaN = current position)
+            altitude        # param7: altitude
+        )
 
     def request_data_stream(self):
         """Requests data streams from the autopilot."""
@@ -97,4 +159,13 @@ class MavlinkConnection:
             1  # Start (1 to start, 0 to stop)
         )
         logger.info("Requested all data streams at 2Hz")
+
+    def start_mission(self):
+        """Starts the mission (switches to AUTO mode or sends MISSION_START)."""
+        # Option A: MAV_CMD_MISSION_START (300)
+        self.send_command_long(mavutil.mavlink.MAV_CMD_MISSION_START, 0, 0)
+        # Option B: Set Mode to AUTO (often more robust for straight mission start)
+        # But MAV_CMD_MISSION_START is the precise command.
+        # Let's also ensure we arm? No, separate command.
+
 
