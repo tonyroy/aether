@@ -11,8 +11,13 @@ def mock_mqtt():
     return MagicMock()
 
 @pytest.fixture
-def bridge(mock_mavlink, mock_mqtt):
-    return CloudBridge(mock_mavlink, mock_mqtt)
+def mock_mission_manager():
+    return MagicMock()
+
+@pytest.fixture
+def bridge(mock_mavlink, mock_mqtt, mock_mission_manager):
+    return CloudBridge(mock_mavlink, mock_mqtt, mock_mission_manager)
+
 
 def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
     # Setup - Create a mock MAVLink message
@@ -68,3 +73,13 @@ def test_command_received_takeoff(bridge, mock_mavlink):
     cmd_data = {'command': 'TAKEOFF', 'params': [50]}
     bridge.on_command_received(cmd_data)
     mock_mavlink.takeoff.assert_called_once_with(50)
+
+
+def test_mission_received(bridge, mock_mission_manager):
+    """Verify that incoming mission plans are routed to MissionManager."""
+    plan = {"mission_id": "test-123", "waypoints": []}
+    
+    bridge.on_mission_received(plan)
+    
+    mock_mission_manager.upload_mission.assert_called_once_with(plan)
+

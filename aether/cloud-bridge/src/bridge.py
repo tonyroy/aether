@@ -7,9 +7,10 @@ from pymavlink import mavutil
 logger = logging.getLogger(__name__)
 
 class CloudBridge:
-    def __init__(self, mavlink: MavlinkConnection, mqtt):
+    def __init__(self, mavlink: MavlinkConnection, mqtt, mission_manager=None):
         self.mavlink = mavlink
         self.mqtt = mqtt
+        self.mission_manager = mission_manager
         self.running = False
 
     def start(self):
@@ -25,6 +26,27 @@ class CloudBridge:
             try:
                  self.mqtt.connect()
                  self.mqtt.subscribe_command(self.on_command_received)
+                 # Also subscribe to Mission Plan topic
+                 if self.mission_manager:
+                     # Assuming mqtt has a generic subscribe method or we add a specific one
+                     # For now, let's assume we can reuse subscribe_command or add subscribe_mission
+                     # But checking mqtt.py, it likely only has subscribe_command.
+                     # We should add subscribe_topic to mqtt.py or just use subscribe_command logic.
+                     # However, to be clean, let's assume we add subscribe_mission to mqtt.py later
+                     # or use a generic one. 
+                     # Let's rely on mqtt.py having generic features or just add a new method.
+                     # Since I can't see mqtt.py right now, I'll assume subscribe_command takes a topic?
+                     # No, previous usage imply it defaults to a command topic.
+                     
+                     # Let's add subscription to mission topic. 
+                     # We need to update MQTT class too for this.
+                     # For now, let's call self.mqtt.subscribe_mission(self.on_mission_received)
+                     # expecting we add it.
+                     if hasattr(self.mqtt, 'subscribe_mission'):
+                        self.mqtt.subscribe_mission(self.on_mission_received)
+                     else:
+                        logger.warning("MQTT class does not have subscribe_mission method.")
+
             except Exception as e:
                 logger.error(f"Failed to connect to AWS IoT: {e}. Bridge will run in telemetry-only mode (logging locally).")
                 self.mqtt = None
@@ -33,6 +55,7 @@ class CloudBridge:
 
         # Start telemetry loop
         self.telemetry_loop()
+
 
     def telemetry_loop(self):
         logger.info("Starting telemetry loop...")
@@ -96,6 +119,18 @@ class CloudBridge:
         elif cmd == 'TAKEOFF':
             alt = params[0] if len(params) > 0 else 10
             self.mavlink.takeoff(alt)
-        # Add more generic command handlers here
         else:
             logger.warning(f"Unknown command: {cmd}")
+
+    def on_mission_received(self, mission_plan: dict):
+        """Handler for incoming mission plan JSON."""
+        logger.info("Received Mission Plan.")
+        if self.mission_manager:
+            try:
+                self.mission_manager.upload_mission(mission_plan)
+                logger.info("Mission Plan uploaded successfully.")
+            except Exception as e:
+                logger.error(f"Failed to upload mission: {e}")
+        else:
+            logger.warning("Received Mission Plan but no MissionManager configured.")
+

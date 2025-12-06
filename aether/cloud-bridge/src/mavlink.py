@@ -36,6 +36,25 @@ class MavlinkConnection:
             if msg:
                 yield msg
 
+    @property
+    def mav(self):
+        if self.master:
+            return self.master.mav
+        return None
+
+    @property
+    def target_system(self):
+        if self.master:
+            return self.master.target_system
+        return 0
+
+    @property
+    def target_component(self):
+        if self.master:
+            return self.master.target_component
+        return 0
+
+
     def send_command_long(self, command, param1=0, param2=0, param3=0, param4=0, param5=0, param6=0, param7=0):
         """Sends a COMMAND_LONG message."""
         if not self.master:

@@ -65,6 +65,25 @@ class AwsMqttConnection:
         )
         subscribe_future.result()
 
+    def subscribe_mission(self, callback):
+        topic = f"mav/{self.client_id}/mission"
+        logger.info(f"Subscribing to {topic}")
+        
+        def on_message_received(topic, payload, dup, qos, retain, **kwargs):
+            try:
+                decoded = json.loads(payload.decode('utf-8'))
+                logger.info(f"Received mission plan on {topic}")
+                callback(decoded)
+            except Exception as e:
+                logger.error(f"Error processing mission plan: {e}")
+
+        subscribe_future, packet_id = self.connection.subscribe(
+            topic=topic,
+            qos=mqtt.QoS.AT_LEAST_ONCE,
+            callback=on_message_received
+        )
+        subscribe_future.result()
+
 class LocalMqttConnection:
     def __init__(self, host, port, client_id):
         self.host = host
@@ -72,6 +91,7 @@ class LocalMqttConnection:
         self.client_id = client_id
         self.client = mqtt_paho.Client(client_id=client_id)
         self.command_callback = None
+        self.mission_callback = None
 
     def connect(self):
         logger.info(f"Connecting to Local MQTT Broker at {self.host}:{self.port}...")
@@ -82,6 +102,8 @@ class LocalMqttConnection:
                 # Re-subscribe on reconnect
                 if self.command_callback:
                     self.subscribe_command(self.command_callback)
+                if self.mission_callback:
+                    self.subscribe_mission(self.mission_callback)
             else:
                 logger.error(f"Failed to connect to Local MQTT, return code {rc}")
 
@@ -107,6 +129,22 @@ class LocalMqttConnection:
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
 
-        self.client.on_message = on_message
+        self.client.message_callback_add(topic, on_message)
+        self.client.subscribe(topic)
+
+    def subscribe_mission(self, callback):
+        self.mission_callback = callback
+        topic = f"mav/{self.client_id}/mission"
+        logger.info(f"Subscribing to {topic}")
+
+        def on_message(client, userdata, msg):
+            try:
+                decoded = json.loads(msg.payload.decode('utf-8'))
+                logger.info(f"Received mission on {msg.topic}")
+                callback(decoded)
+            except Exception as e:
+                logger.error(f"Error processing mission: {e}")
+
+        self.client.message_callback_add(topic, on_message)
         self.client.subscribe(topic)
 

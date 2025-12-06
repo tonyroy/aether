@@ -4,6 +4,7 @@ import argparse
 from src.mavlink import MavlinkConnection
 from src.mqtt import AwsMqttConnection, LocalMqttConnection
 from src.bridge import CloudBridge
+from src.mission import MissionManager
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,6 +28,9 @@ def main():
 
     # MAVLink Connection
     mav = MavlinkConnection(args.mavlink)
+    
+    # Mission Manager
+    mission_manager = MissionManager(mav)
 
     # MQTT Connection
     mqtt = None
@@ -48,8 +52,9 @@ def main():
         logging.warning("No AWS Endpoint or Local Broker provided. Running in standalone mode.")
 
     # Initialize and START
-    bridge = CloudBridge(mav, mqtt)
+    bridge = CloudBridge(mav, mqtt, mission_manager)
     bridge.start()
+
 
 if __name__ == '__main__':
     main()
