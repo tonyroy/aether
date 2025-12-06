@@ -23,10 +23,7 @@ class CloudBridge:
         if self.mqtt:
             try:
                 self.mqtt.connect()
-                self.mqtt.subscribe_command(self.on_command_received)
-                
-                # Shadow is used for STATE REPORTING ONLY
-                # Commands come via MQTT topic to ensure firmware has priority
+                self.mqtt.subscribe_command(self.on_command_received)                
                 
                 if self.mission_manager:
                     self.mqtt.subscribe_mission(self.on_mission_received)
@@ -102,15 +99,26 @@ class CloudBridge:
                     logger.info(f"[SIM] Attitude: {payload}")
             
             elif msg_type == 'HEARTBEAT':
+                # Only process heartbeats from the autopilot (compid 1) to avoid noise from other components
+                if msg.get_srcComponent() != 1:  # MAV_COMP_ID_AUTOPILOT1
+                    continue
+                    
                 # Get flight mode name from mode mapping
                 mode_name = "UNKNOWN"
                 if hasattr(self.mavlink.master, 'flightmode'):
                     mode_name = self.mavlink.master.flightmode
                 
+                # Use master.motors_armed() which tracks the autopilot state reliably
+                is_armed = self.mavlink.master.motors_armed()
+                
+                # Debug logging to investigate why armed might be False when flying
+                if not is_armed and msg.base_mode & 128:
+                    logger.warning(f"Mismatch: msg.base_mode={msg.base_mode} implies ARMED, but motors_armed() is False")
+                
                 payload = {
                     'type': 'HEARTBEAT',
                     'mode': mode_name,
-                    'armed': bool(msg.base_mode & 128),  # MAV_MODE_FLAG_SAFETY_ARMED
+                    'armed': is_armed,
                     'system_status': msg.system_status
                 }
                 if self.mqtt:
