@@ -39,12 +39,24 @@ class AwsMqttConnection:
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
+        message = json.dumps(payload)
         self.connection.publish(
             topic=topic,
-            payload=json.dumps(payload),
+            payload=message,
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.debug(f"Published to {topic}: {payload}")
+    
+    def publish_status(self, status: dict):
+        """Publish command status (success/failure)"""
+        topic = f"mav/{self.client_id}/status"
+        message = json.dumps(status)
+        self.connection.publish(
+            topic=topic,
+            payload=message,
+            qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        logger.info(f"Published status to {topic}: {status}")
 
     def subscribe_command(self, callback):
         topic = f"mav/{self.client_id}/cmd"
@@ -113,8 +125,16 @@ class LocalMqttConnection:
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
-        self.client.publish(topic, json.dumps(payload))
+        message = json.dumps(payload)
+        self.client.publish(topic, message)
         logger.debug(f"Published to {topic}: {payload}")
+    
+    def publish_status(self, status: dict):
+        """Publish command status (success/failure)"""
+        topic = f"mav/{self.client_id}/status"
+        message = json.dumps(status)
+        self.client.publish(topic, message)
+        logger.info(f"Published status to {topic}: {status}")
 
     def subscribe_command(self, callback):
         self.command_callback = callback

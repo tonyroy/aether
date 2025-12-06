@@ -1,10 +1,19 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 from src.bridge import CloudBridge
+
 
 @pytest.fixture
 def mock_mavlink():
-    return MagicMock()
+    mock = MagicMock()
+    # Mock async methods with AsyncMock
+    mock.arm_async = AsyncMock(return_value=True)
+    mock.disarm_async = AsyncMock(return_value=True)
+    mock.guided_takeoff_async = AsyncMock(return_value=True)
+    # Keep sync methods as regular mocks
+    mock.start_mission = MagicMock()
+    mock.get_messages = MagicMock(return_value=[])
+    return mock
 
 @pytest.fixture
 def mock_mqtt():
@@ -67,12 +76,12 @@ def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
 def test_command_received_arm(bridge, mock_mavlink):
     cmd_data = {'command': 'ARM'}
     bridge.on_command_received(cmd_data)
-    mock_mavlink.arm.assert_called_once()
+    mock_mavlink.arm_async.assert_called_once()
 
 def test_command_received_takeoff(bridge, mock_mavlink):
     cmd_data = {'command': 'TAKEOFF', 'params': [50]}
     bridge.on_command_received(cmd_data)
-    mock_mavlink.guided_takeoff.assert_called_once_with(50)
+    mock_mavlink.guided_takeoff_async.assert_called_once_with(50)
 
 
 def test_mission_received(bridge, mock_mission_manager):

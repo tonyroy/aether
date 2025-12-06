@@ -66,6 +66,11 @@ class CloudBridge:
             msg_type = msg.get_type()
             logger.debug(f"Received MAVLink message: {msg_type}")
 
+            # Forward COMMAND_ACK to MAVLink layer for async command completion
+            if msg_type == 'COMMAND_ACK':
+                self.mavlink.handle_command_ack(msg)
+                continue
+
             # Forward mission messages to MissionManager
             if self.mission_manager and msg_type in ['MISSION_REQUEST', 'MISSION_ACK', 'MISSION_ITEM_REACHED']:
                 self.mission_manager.on_mavlink_message(msg)
@@ -112,22 +117,49 @@ class CloudBridge:
                     logger.info(f"[SIM] Battery: {payload}")
 
     def on_command_received(self, command_data):
+        """Handle incoming command and publish status.
+        
+        Uses async commands internally but wraps in asyncio.run() for sync compatibility.
+        """
+        import asyncio
+        import time
+        
         cmd = command_data.get('command')
         params = command_data.get('params', [])
         
         logger.info(f"Executing command: {cmd} with params {params}")
         
-        if cmd == 'ARM':
-            self.mavlink.arm()
-        elif cmd == 'DISARM':
-            self.mavlink.disarm()
-        elif cmd == 'TAKEOFF':
-            alt = params[0] if len(params) > 0 else 10
-            self.mavlink.guided_takeoff(alt)
-        elif cmd == 'START_MISSION':
-            self.mavlink.start_mission()
-        else:
-            logger.warning(f"Unknown command: {cmd}")
+        # Execute command asynchronously and get result
+        success = False
+        try:
+            if cmd == 'ARM':
+                success = asyncio.run(self.mavlink.arm_async())
+            elif cmd == 'DISARM':
+                success = asyncio.run(self.mavlink.disarm_async())
+            elif cmd == 'TAKEOFF':
+                alt = params[0] if len(params) > 0 else 10
+                success = asyncio.run(self.mavlink.guided_takeoff_async(alt))
+            elif cmd == 'START_MISSION':
+                self.mavlink.start_mission()
+                success = True  # START_MISSION doesn't have async version yet
+            else:
+                logger.warning(f"Unknown command: {cmd}")
+                success = False
+        except Exception as e:
+            logger.error(f"Command {cmd} failed with exception: {e}")
+            success = False
+        
+        # Publish status
+        status = {
+            "command": cmd,
+            "status": "success" if success else "failed",
+            "timestamp": time.time()
+        }
+        
+        if self.mqtt:
+            self.mqtt.publish_status(status)
+        
+        logger.info(f"Command {cmd} {'succeeded' if success else 'failed'}")
 
 
     def on_mission_received(self, mission_plan: dict):
