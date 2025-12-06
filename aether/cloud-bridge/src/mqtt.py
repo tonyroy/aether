@@ -15,10 +15,13 @@ class AwsMqttConnection:
         self.root_ca_path = root_ca_path
         self.client_id = client_id
         self.connection = None
+        self.loop = None  # Store event loop reference
 
     def connect(self):
-        logger.info(f"Connecting to AWS IoT at {self.endpoint} with client ID {self.client_id}...")
+        # Get the event loop - use get_event_loop() which works from any context
+        self.loop = asyncio.get_event_loop()
         
+        logger.info(f"Connecting to AWS IoT at {self.endpoint} with client ID {self.client_id}...")
         event_loop_group = io.EventLoopGroup(1)
         host_resolver = io.DefaultHostResolver(event_loop_group)
         client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
@@ -27,16 +30,16 @@ class AwsMqttConnection:
             endpoint=self.endpoint,
             cert_filepath=self.cert_path,
             pri_key_filepath=self.key_path,
-            ca_filepath=self.root_ca_path,
-            client_id=str(self.client_id),
             client_bootstrap=client_bootstrap,
+            ca_filepath=self.root_ca_path,
+            client_id=self.client_id,
             clean_session=False,
-            keep_alive_secs=30
+            keep_alive_secs=6
         )
 
         connect_future = self.connection.connect()
         connect_future.result()
-        logger.info("Connected to AWS IoT!")
+        logger.info(f"Connected to AWS IoT at {self.endpoint}")
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
@@ -67,9 +70,9 @@ class AwsMqttConnection:
             try:
                 decoded = json.loads(payload.decode('utf-8'))
                 logger.info(f"Received command on {topic}: {decoded}")
-                # Schedule async callback in event loop
+                # Schedule async callback in event loop from different thread
                 if asyncio.iscoroutinefunction(callback):
-                    asyncio.create_task(callback(decoded))
+                    asyncio.run_coroutine_threadsafe(callback(decoded), self.loop)
                 else:
                     callback(decoded)
             except Exception as e:
@@ -90,9 +93,9 @@ class AwsMqttConnection:
             try:
                 decoded = json.loads(payload.decode('utf-8'))
                 logger.info(f"Received mission plan on {topic}")
-                # Schedule async callback in event loop
+                # Schedule async callback in event loop from different thread
                 if asyncio.iscoroutinefunction(callback):
-                    asyncio.create_task(callback(decoded))
+                    asyncio.run_coroutine_threadsafe(callback(decoded), self.loop)
                 else:
                     callback(decoded)
             except Exception as e:
@@ -105,32 +108,34 @@ class AwsMqttConnection:
         )
         subscribe_future.result()
 
+
 class LocalMqttConnection:
     def __init__(self, host, port, client_id):
         self.host = host
         self.port = int(port)
         self.client_id = client_id
-        self.client = mqtt_paho.Client(client_id=client_id)
+        self.client = None
         self.command_callback = None
         self.mission_callback = None
+        self.loop = None  # Store event loop reference
 
     def connect(self):
-        logger.info(f"Connecting to Local MQTT Broker at {self.host}:{self.port}...")
+        # Get the event loop - use get_event_loop() which works from any context
+        self.loop = asyncio.get_event_loop()
         
-        def on_connect(client, userdata, flags, rc):
-            if rc == 0:
-                logger.info("Connected to Local MQTT Broker!")
-                # Re-subscribe on reconnect
-                if self.command_callback:
-                    self.subscribe_command(self.command_callback)
-                if self.mission_callback:
-                    self.subscribe_mission(self.mission_callback)
-            else:
-                logger.error(f"Failed to connect to Local MQTT, return code {rc}")
-
-        self.client.on_connect = on_connect
+        logger.info(f"Connecting to Local MQTT Broker at {self.host}:{self.port}...")
+        self.client = mqtt_paho.Client(client_id=self.client_id)
+        self.client.on_connect = self._on_connect
         self.client.connect(self.host, self.port, 60)
         self.client.loop_start()
+
+    def _on_connect(self, client, userdata, flags, rc):
+        logger.info("Connected to Local MQTT Broker!")
+        # Re-subscribe on reconnect
+        if self.command_callback:
+            self.subscribe_command(self.command_callback)
+        if self.mission_callback:
+            self.subscribe_mission(self.mission_callback)
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
@@ -154,9 +159,9 @@ class LocalMqttConnection:
             try:
                 decoded = json.loads(msg.payload.decode('utf-8'))
                 logger.info(f"Received command on {msg.topic}: {decoded}")
-                # Schedule async callback in event loop
+                # Schedule async callback in event loop from MQTT thread
                 if asyncio.iscoroutinefunction(callback):
-                    asyncio.create_task(callback(decoded))
+                    asyncio.run_coroutine_threadsafe(callback(decoded), self.loop)
                 else:
                     callback(decoded)
             except Exception as e:
@@ -174,9 +179,9 @@ class LocalMqttConnection:
             try:
                 decoded = json.loads(msg.payload.decode('utf-8'))
                 logger.info(f"Received mission on {msg.topic}: {decoded}")
-                # Schedule async callback in event loop
+                # Schedule async callback in event loop from MQTT thread
                 if asyncio.iscoroutinefunction(callback):
-                    asyncio.create_task(callback(decoded))
+                    asyncio.run_coroutine_threadsafe(callback(decoded), self.loop)
                 else:
                     callback(decoded)
             except Exception as e:
