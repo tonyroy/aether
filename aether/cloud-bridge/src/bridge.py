@@ -84,6 +84,23 @@ class CloudBridge:
                 else:
                     logger.info(f"[SIM] Attitude: {payload}")
             
+            elif msg_type == 'HEARTBEAT':
+                # Get flight mode name from mode mapping
+                mode_name = "UNKNOWN"
+                if hasattr(self.mavlink.master, 'flightmode'):
+                    mode_name = self.mavlink.master.flightmode
+                
+                payload = {
+                    'type': 'HEARTBEAT',
+                    'mode': mode_name,
+                    'armed': bool(msg.base_mode & 128),  # MAV_MODE_FLAG_SAFETY_ARMED
+                    'system_status': msg.system_status
+                }
+                if self.mqtt:
+                    self.mqtt.publish_telemetry(payload)
+                else:
+                    logger.info(f"[SIM] Heartbeat: Mode={mode_name}, Armed={payload['armed']}")
+            
             elif msg_type == 'BATTERY_STATUS':
                 payload = {
                     'type': 'BATTERY_STATUS',
