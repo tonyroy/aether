@@ -1,11 +1,8 @@
-# Agent Development Rules
-
-When writing code or generating plans for this project, you MUST adhere to the following technology stack requirements:
-
-## 1. Infrastructure as Code (IaC)
-*   **Tool**: **AWS CDK**
-*   **Language**: Python (unless explicitly requested otherwise).
-*   **Do not use**: Terraform, CloudFormation (raw), or Pulumi.
+# Agent## 1. Development Standards
+- **Infrastructure as Code**: All AWS infrastructure MUST be defined using AWS CDK (TypeScript or Python).
+- **Python**: Use Python 3.9+ for all scripts and backend services.
+- **Python Tooling**: Use `uv` for Python package management and virtual environments.
+- **CI/CD**: Use GitHub Actions for all build and deployment pipelines.
 
 ## 2. Scripting & Automation
 *   **Language**: **Python 3**

@@ -21,19 +21,22 @@ cd aether/docker-sitl
 ./run-drone.sh
 ```
 
-Or simply ask me to "Run the drone simulation".
+### Key Components
+1.  **Simulation**: ArduCopter SITL running in Docker.
+2.  **Cloud Bridge**: Python service that translates MAVLink <-> JSON.
+    -   **Telemetry**: Publishes state to AWS Device Shadow.
+    -   **Missions**: Uploads complex paths (Waypoints, Geofences) from `schemas/mission_plan.json`.
+3.  **Orchestration**: Temporal.io workflows manage long-running tasks ("Scan Perimeter").
 
-## Architecture Highlights
-
-*   **Temporal.io**: Used for durable execution and managing the state of "Drone Entities".
-*   **Model Context Protocol (MCP)**: Standardizes the interface between AI agents and drone capabilities.
-*   **AWS IoT Core**: Handles secure MAVLink telemetry ingress and command egress.
-*   **AWS Fargate**: Runs ephemeral simulation "sidecars" for scalable fleet testing.
+## Protocols & Schemas
+We use a **Schema-First** design. The contract between the Drone and the Cloud is defined in `schemas/`:
+-   `schemas/telemetry.json`: High-frequency state updates.
+-   `schemas/command.json`: Atomic commands (ARM, LAND).
+-   `schemas/mission_plan.json`: Complex safety & flight plans.
 
 ## Development Standards
-
-*   **Infrastructure**: AWS CDK (Python)
-*   **Scripting**: Python 3
-*   **CI/CD**: GitHub Actions
+-   **Infrastructure**: AWS CDK (Python).
+-   **Language**: Python 3.9+ (managed via `uv`).
+-   **CI/CD**: GitHub Actions.
 
 For a deep dive into the architecture, please read [aether/docs/overview.md](aether/docs/overview.md).
