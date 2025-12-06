@@ -149,3 +149,39 @@ def test_convert_complex_waypoints(mock_mavlink):
     # Check Item 3: Waypoint
     assert items[2].command == 16  # MAV_CMD_NAV_WAYPOINT
     assert items[2].x == -35.1     # Waypoint Lat
+
+def test_on_mission_request(mock_mavlink):
+    """Verify that MissionManager responds to MISSION_REQUEST with the correct item."""
+    manager = MissionManager(mock_mavlink)
+    
+    # 1. Setup minimal plan
+    plan = {
+        "mission_id": "req-test",
+        "waypoints": [{"lat": -35.0, "lon": 149.0, "alt": 20}]
+    }
+    
+    # 2. Start upload - this should set internal state
+    manager.upload_mission(plan)
+    
+    # 3. Simulate receiving MISSION_REQUEST for seq 0
+    # We need a mock object that behaves like a MAVLink message
+    msg = MagicMock()
+    msg.get_type.return_value = 'MISSION_REQUEST'
+    msg.seq = 0
+    msg.mission_type = 0 # MAV_MISSION_TYPE_MISSION
+    
+    # 4. Process the message
+    manager.on_mavlink_message(msg)
+    
+    # 5. Verify that mission_write_int (or similar) was called
+    # We use mission_item_int_send usually for MAVLink 2
+    mock_mavlink.mav.mission_item_int_send.assert_called_once()
+    
+    # Check args - seq should be 0
+    args = mock_mavlink.mav.mission_item_int_send.call_args[0]
+    # Signature: target_system, target_component, seq, frame, command, current, autocontinue, p1, p2, p3, p4, x, y, z, mission_type
+    assert args[2] == 0 # seq
+    assert args[11] == -35.0 * 1e7 # x (lat) as int if using int_send, or float if standard send?
+    # Actually, let's see what the implementation chooses. MAVLink 2 prefers int.
+    # pymavlink sends int usually.
+

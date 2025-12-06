@@ -17,6 +17,7 @@ class MissionItem:
 class MissionManager:
     def __init__(self, mavlink_connection):
         self.mavlink = mavlink_connection
+        self.current_mission_items = {} # Map[mission_type] -> List[MissionItem]
 
     def convert_plan_to_items(self, plan):
         """Converts JSON MissionPlan to MAVLink Mission Items."""
@@ -107,6 +108,9 @@ class MissionManager:
         if count == 0:
             return
 
+        # Store items for retrieval during handshake
+        self.current_mission_items[mission_type] = items
+
         logger.info(f"Uploading {count} items for type {mission_type}...")
         
         self.mavlink.mav.mission_count_send(
@@ -115,11 +119,45 @@ class MissionManager:
             count,
             mission_type
         )
-        # Note: In real implementation, we would wait for MISSION_REQUEST
-        # and send items one by one. For this prototype, we just send COUNT.
+        
+    def on_mavlink_message(self, msg):
+        """Processes incoming MAVLink messages for mission protocol."""
+        msg_type = msg.get_type()
+        
+        if msg_type == 'MISSION_REQUEST':
+            # Handle request for specific item
+            seq = msg.seq
+            mission_type = getattr(msg, 'mission_type', 0) # Default to 0 if not present (MAVLink 1)
+            
+            items = self.current_mission_items.get(mission_type)
+            if items and seq < len(items):
+                item = items[seq]
+                logger.debug(f"Sending MISSION_ITEM {seq} type {mission_type}")
+                
+                # Send item
+                # Using mission_item_int_send for better precision
+                self.mavlink.mav.mission_item_int_send(
+                    self.mavlink.target_system,
+                    self.mavlink.target_component,
+                    seq,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                    item.command,
+                    0, # current (not used for upload)
+                    1, # autocontinue
+                    item.param1, item.param2, item.param3, 0, # p1-p4
+                    int(item.x * 1e7), # lat (int)
+                    int(item.y * 1e7), # lon (int)
+                    item.z, # alt (float)
+                    mission_type
+                )
+            else:
+                logger.warning(f"Received MISSION_REQUEST for invalid seq {seq} or type {mission_type}")
 
     def upload_mission(self, plan):
         """Orchestrates mission upload for all types."""
+        # Clear previous state
+        self.current_mission_items = {}
+
         # 1. Waypoints (Type 0)
         mission_items = self.convert_plan_to_items(plan)
         self._upload_list(mission_items, 0) # MAV_MISSION_TYPE_MISSION
@@ -131,5 +169,6 @@ class MissionManager:
         # 3. Rally Points (Type 2 = MAV_MISSION_TYPE_RALLY)
         rally_items = self.convert_rally_to_items(plan)
         self._upload_list(rally_items, 2)
+
 
 

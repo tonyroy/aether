@@ -83,3 +83,21 @@ def test_mission_received(bridge, mock_mission_manager):
     
     mock_mission_manager.upload_mission.assert_called_once_with(plan)
 
+
+def test_mission_forwarding(bridge, mock_mavlink, mock_mission_manager):
+    """Verify that MAVLink mission messages are forwarded to MissionManager."""
+    # Setup mock message
+    msg = MagicMock()
+    msg.get_type.return_value = 'MISSION_REQUEST'
+    
+    # Configure bridge loop to yield this message once
+    mock_mavlink.get_messages.return_value = [msg]
+    bridge.running = True
+    
+    # Run loop
+    bridge.telemetry_loop()
+    
+    # Verify forwarding
+    mock_mission_manager.on_mavlink_message.assert_called_once_with(msg)
+
+

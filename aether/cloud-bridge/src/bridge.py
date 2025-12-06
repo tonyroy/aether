@@ -65,9 +65,14 @@ class CloudBridge:
             
             msg_type = msg.get_type()
             logger.debug(f"Received MAVLink message: {msg_type}")
+
+            # Forward mission messages to MissionManager
+            if self.mission_manager and msg_type in ['MISSION_REQUEST', 'MISSION_ACK', 'MISSION_ITEM_REACHED']:
+                self.mission_manager.on_mavlink_message(msg)
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
+
                 payload = {
                     'type': 'GLOBAL_POSITION_INT',
                     'lat': msg.lat / 1e7,
