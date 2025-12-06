@@ -36,7 +36,8 @@ We use a **Schema-First** design. The contract between the Drone and the Cloud i
 
 ## Development Standards
 -   **Infrastructure**: AWS CDK (Python).
--   **Language**: Python 3.9+ (managed via `uv`).
+-   **Language**: Python 3.9+ (managed via `uv`), with strict type hinting.
+-   **Methodology**: Test-Driven Development (TDD).
 -   **CI/CD**: GitHub Actions.
 
 For a deep dive into the architecture, please read [aether/docs/overview.md](aether/docs/overview.md).
