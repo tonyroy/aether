@@ -6,3 +6,4 @@ env/
 venv/
 *.log
 certs/
+clusterdata.db
