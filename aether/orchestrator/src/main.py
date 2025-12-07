@@ -1,0 +1,94 @@
+import asyncio
+import logging
+import os
+import sys
+from temporalio.client import Client
+from temporalio.worker import Worker
+from awscrt import io, mqtt, auth, http
+from awsiot import mqtt_connection_builder
+
+# Import artifacts
+from activities import send_command, wait_for_telemetry
+import activities
+from workflows import MissionWorkflow
+
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def create_mqtt_connection():
+    endpoint = os.getenv("IOT_ENDPOINT")
+    cert_path = os.getenv("IOT_CERT")
+    key_path = os.getenv("IOT_KEY")
+    root_ca_path = os.getenv("IOT_ROOT_CA")
+    client_id = "orchestrator"
+    
+    if not all([endpoint, cert_path, key_path, root_ca_path]):
+        logger.warning("AWS IoT credentials not fully configured. MQTT will definitely fail.")
+        # We might want to exit or retry, but let's try to connect only if configured
+        if not endpoint:
+            return None
+
+    logger.info(f"Connecting to AWS IoT at {endpoint}...")
+    event_loop_group = io.EventLoopGroup(1)
+    host_resolver = io.DefaultHostResolver(event_loop_group)
+    client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+
+    mqtt_connection = mqtt_connection_builder.mtls_from_path(
+        endpoint=endpoint,
+        cert_filepath=cert_path,
+        pri_key_filepath=key_path,
+        client_bootstrap=client_bootstrap,
+        ca_filepath=root_ca_path,
+        client_id=client_id,
+        clean_session=False,
+        keep_alive_secs=6
+    )
+    
+    connect_future = mqtt_connection.connect()
+    connect_future.result()
+    logger.info("Connected to AWS IoT!")
+    return mqtt_connection
+
+async def main():
+    logger.info("Starting Orchestrator Worker...")
+    
+    # 1. Connect to AWS IoT
+    try:
+        activities.mqtt_connection = create_mqtt_connection()
+    except Exception as e:
+        logger.error(f"Failed to connect to AWS IoT: {e}")
+        # Depending on resilience requirements, we might want to retry loop here
+    
+    # 2. Connect to Temporal Service
+    temporal_host = os.getenv("TEMPORAL_SERVICE_ADDRESS", "temporal:7233")
+    logger.info(f"Connecting to Temporal at {temporal_host}...")
+    
+    # Wait for temporal to be ready
+    while True:
+        try:
+            client = await Client.connect(temporal_host)
+            break
+        except Exception as e:
+            logger.warning(f"Waiting for Temporal... {e}")
+            await asyncio.sleep(2)
+
+    logger.info("Connected to Temporal Server")
+
+    # 3. Create Worker
+    worker = Worker(
+        client,
+        task_queue="mission-queue",
+        workflows=[MissionWorkflow],
+        activities=[send_command, wait_for_telemetry],
+    )
+    
+    logger.info("Worker started. Listening on 'mission-queue'")
+    await worker.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())

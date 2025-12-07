@@ -99,9 +99,10 @@ def provision_drone(drone_id: str, output_dir: str = "../../certs"):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python provision_drone.py <drone_id>")
-        print("Example: python provision_drone.py drone-1")
+        print("Usage: python provision_drone.py <drone_id> [output_dir]")
+        print("Example: python provision_drone.py drone-1 certs")
         sys.exit(1)
     
     drone_id = sys.argv[1]
-    provision_drone(drone_id)
+    output_dir = sys.argv[2] if len(sys.argv) > 2 else "../../certs"
+    provision_drone(drone_id, output_dir)
