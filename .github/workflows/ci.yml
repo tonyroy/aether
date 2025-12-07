@@ -22,24 +22,35 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
+      - name: Install dependencies (Cloud Bridge)
         working-directory: ./aether/cloud-bridge
         run: |
-          uv pip install --system -r requirements.txt
+          uv venv
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
+          uv pip install flake8 pytest
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
-      - name: Lint with flake8
+      - name: Lint Cloud Bridge
         working-directory: ./aether/cloud-bridge
         run: |
-          # stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      - name: Test with pytest
+      - name: Test Cloud Bridge
         working-directory: ./aether/cloud-bridge
         run: |
-          uv pip install pytest
           python -m pytest tests/
+
+      - name: Install dependencies (Orchestrator)
+        working-directory: ./aether/orchestrator
+        run: |
+          uv sync
+
+      - name: Test Orchestrator
+        working-directory: ./aether/orchestrator
+        run: |
+          uv run env PYTHONPATH=. pytest tests/
 
   build-docker:
     runs-on: ubuntu-latest
