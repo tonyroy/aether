@@ -71,6 +71,50 @@ class IoTStack(Stack):
             policy_document=policy_document
         )
 
+        # IoT Policy for Orchestrator
+        orchestrator_policy_doc = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": ["iot:Connect"],
+                    "Resource": [
+                        f"arn:aws:iot:{self.region}:{self.account}:client/orchestrator"
+                    ]
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["iot:Publish"],
+                    "Resource": [
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/cmd",
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/mission"
+                    ]
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["iot:Subscribe"],
+                    "Resource": [
+                        f"arn:aws:iot:{self.region}:{self.account}:topicfilter/mav/*/status",
+                        f"arn:aws:iot:{self.region}:{self.account}:topicfilter/mav/*/telemetry"
+                    ]
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["iot:Receive"],
+                    "Resource": [
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/status",
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/telemetry"
+                    ]
+                }
+            ]
+        }
+
+        self.orchestrator_policy = iot.CfnPolicy(
+            self, "OrchestratorPolicy",
+            policy_name="AetherOrchestratorPolicy",
+            policy_document=orchestrator_policy_doc
+        )
+
         # Output the IoT endpoint
         CfnOutput(
             self, "IoTEndpoint",

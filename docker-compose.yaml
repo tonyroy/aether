@@ -1,6 +1,11 @@
 version: '3.8'
 
+networks:
+  default:
+    name: drones_default
+
 services:
+  # === Drone Simulation Infrastructure ===
   sitl:
     image: aether-drone-node
     container_name: sitl-drone
@@ -11,7 +16,8 @@ services:
       - INSTANCE=0
       - SERIAL0=tcp:5760
       - SERIAL1=tcp:5762
-
+    
+  # === Local MQTT Broker ===
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: mosquitto
@@ -21,6 +27,7 @@ services:
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
 
+  # === Cloud Bridge (Edge) ===
   cloud-bridge:
     image: aether-cloud-bridge
     container_name: cloud-bridge
@@ -32,4 +39,6 @@ services:
       # Dev Mode Configuration
       - LOCAL_BROKER_HOST=mosquitto
       - LOCAL_BROKER_PORT=1883
-      # - IOT_ENDPOINT= (Uncomment to use AWS instead)
+      # - IOT_ENDPOINT=${IOT_ENDPOINT} (Uncomment and set env var for AWS)
+
+
