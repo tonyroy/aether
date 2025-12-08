@@ -87,7 +87,8 @@ class IoTStack(Stack):
                     "Action": ["iot:Publish"],
                     "Resource": [
                         f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/cmd",
-                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/mission"
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/mav/*/mission",
+                        f"arn:aws:iot:{self.region}:{self.account}:topic/$aws/things/*/shadow/update"
                     ]
                 },
                 {
