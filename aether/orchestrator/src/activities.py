@@ -49,3 +49,36 @@ async def wait_for_telemetry(drone_id: str):
     Placeholder for checking telemetry.
     """
     return "Telemetry OK"
+
+@activity.defn
+async def update_shadow_status(drone_id: str, status: str) -> str:
+    """
+    Updates the device shadow 'reported.orchestrator.status' to reflect mission state.
+    Used for Fleet Indexing.
+    """
+    if not mqtt_connection:
+        raise RuntimeError("MQTT connection not initialized")
+        
+    topic = f"$aws/things/{drone_id}/shadow/update"
+    payload = {
+        "state": {
+            "reported": {
+                "orchestrator": {
+                    "status": status
+                }
+            }
+        }
+    }
+    
+    logger.info(f"Updating shadow status for {drone_id} to {status}")
+    
+    from awscrt import mqtt
+    
+    future, _ = mqtt_connection.publish(
+        topic=topic,
+        payload=json.dumps(payload),
+        qos=mqtt.QoS.AT_LEAST_ONCE
+    )
+    
+    future.result()
+    return f"Shadow status updated to {status}"

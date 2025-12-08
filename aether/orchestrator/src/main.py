@@ -80,11 +80,14 @@ async def main():
     logger.info("Connected to Temporal Server")
 
     # 3. Create Worker
+    from activities import update_shadow_status
+    from workflows import DroneEntityWorkflow
+    
     worker = Worker(
         client,
         task_queue="mission-queue",
-        workflows=[MissionWorkflow],
-        activities=[send_command, wait_for_telemetry],
+        workflows=[MissionWorkflow, DroneEntityWorkflow],
+        activities=[send_command, wait_for_telemetry, update_shadow_status],
     )
     
     logger.info("Worker started. Listening on 'mission-queue'")
