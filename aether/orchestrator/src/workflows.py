@@ -1,6 +1,5 @@
 from temporalio import workflow
 from datetime import timedelta
-import asyncio
 
 # Import activity definitions for type hints if needed, or string names
 # from activities import send_command, update_shadow_status
@@ -27,9 +26,8 @@ class MissionWorkflow:
         
         # 3. Simulate Waypoints
         for wp in mission_plan:
-             workflow.logger.info(f"Going to waypoint {wp}")
-             await workflow.sleep(timedelta(seconds=5))
-        
+            workflow.logger.info(f"Going to waypoint {wp}")
+            await workflow.sleep(timedelta(seconds=5))
         # 4. Land
         await workflow.execute_activity(
             "send_command",

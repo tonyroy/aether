@@ -1,13 +1,14 @@
 import logging
-from temporalio import activity
 import json
-import asyncio
+from temporalio import activity
+from awscrt import mqtt
 
 # Global MQTT connection (initialized in main.py)
 mqtt_connection = None
 IOT_CLIENT_ID = "orchestrator"
 
 logger = logging.getLogger(__name__)
+
 
 @activity.defn
 async def send_command(drone_id: str, command: str, params: dict = None) -> str:
@@ -16,32 +17,28 @@ async def send_command(drone_id: str, command: str, params: dict = None) -> str:
     """
     if not mqtt_connection:
         raise RuntimeError("MQTT connection not initialized")
-    
+
     if params is None:
         params = {}
-        
+
     topic = f"mav/{drone_id}/cmd"
     payload = {
         "command": command,
         **params
     }
-    
+
     logger.info(f"Sending command {command} to {topic}: {payload}")
-    
+
     # Publish to MQTT
-    # mqtt_connection.publish(...) logic depends on SDK used (awsiotsdk v2)
-    # We assume mqtt_connection is an awscrt.mqtt.Connection
-    
-    from awscrt import mqtt
-    
     future, _ = mqtt_connection.publish(
         topic=topic,
         payload=json.dumps(payload),
         qos=mqtt.QoS.AT_LEAST_ONCE
     )
-    
-    future.result() # Wait for publish to complete
+
+    future.result()  # Wait for publish to complete
     return f"Command {command} sent to {drone_id}"
+
 
 @activity.defn
 async def wait_for_telemetry(drone_id: str):
