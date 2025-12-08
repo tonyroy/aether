@@ -115,6 +115,44 @@ class IoTStack(Stack):
             policy_document=orchestrator_policy_doc
         )
 
+        # Enable Fleet Indexing (Registry + Shadow + Connectivity)
+        from aws_cdk.custom_resources import AwsCustomResource, AwsCustomResourcePolicy, AwsSdkCall, PhysicalResourceId
+        from aws_cdk.aws_iam import PolicyStatement
+
+        self.fleet_indexing = AwsCustomResource(
+            self, "FleetIndexing",
+            on_create=AwsSdkCall(
+                service="Iot",
+                action="updateIndexingConfiguration",
+                parameters={
+                    "thingIndexingConfiguration": {
+                        "thingIndexingMode": "REGISTRY_AND_SHADOW",
+                        "thingConnectivityIndexingMode": "STATUS"
+                    }
+                },
+                physical_resource_id=PhysicalResourceId.of("FleetIndexingConfig")
+            ),
+            on_update=AwsSdkCall(
+                service="Iot",
+                action="updateIndexingConfiguration",
+                parameters={
+                    "thingIndexingConfiguration": {
+                        "thingIndexingMode": "REGISTRY_AND_SHADOW",
+                        "thingConnectivityIndexingMode": "STATUS"
+                    }
+                },
+                physical_resource_id=PhysicalResourceId.of("FleetIndexingConfig")
+            ),
+            policy=AwsCustomResourcePolicy.from_statements(
+                statements=[
+                    PolicyStatement(
+                        actions=["iot:UpdateIndexingConfiguration"],
+                        resources=["*"]
+                    )
+                ]
+            )
+        )
+
         # Output the IoT endpoint
         CfnOutput(
             self, "IoTEndpoint",
