@@ -115,3 +115,44 @@ class DroneEntityWorkflow:
                     )
         
         workflow.logger.info(f"Entity Workflow exiting for {drone_id}")
+
+from dataclasses import dataclass
+
+@dataclass
+class MissionRequest:
+    description: str
+    priority: int = 1
+
+@workflow.defn
+class MissionRequestWorkflow:
+    @workflow.run
+    async def run(self, request: MissionRequest) -> str:
+        # 1. Plan Mission (Stub - Future: LLM)
+        mission_plan = await workflow.execute_activity(
+            "plan_mission",
+            args=[request],
+            start_to_close_timeout=timedelta(minutes=1)
+        )
+        
+        # 2. Find Drone (with Retry)
+        # We assume 'find_available_drone' raises an error if no drone is found, triggering retry.
+        retry_policy = workflow.RetryPolicy(
+             initial_interval=timedelta(seconds=2),
+             maximum_interval=timedelta(seconds=30),
+             # indefinite retry by default if maximum_attempts not set
+        )
+        
+        drone_id = await workflow.execute_activity(
+            "find_available_drone",
+            start_to_close_timeout=timedelta(seconds=10),
+            retry_policy=retry_policy
+        )
+        
+        # 3. Dispatch
+        await workflow.execute_activity(
+            "assign_mission_to_drone",
+            args=[drone_id, mission_plan],
+            start_to_close_timeout=timedelta(seconds=10)
+        )
+        
+        return "mission_started"

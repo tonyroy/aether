@@ -79,3 +79,66 @@ async def update_shadow_status(drone_id: str, status: str) -> str:
     
     future.result()
     return f"Shadow status updated to {status}"
+
+
+@activity.defn
+async def plan_mission(request: object) -> dict:
+    """
+    STUB: Planning Service.
+    Converts a high-level request into a Mission Plan.
+    Future: Call LLM or Path Planner.
+    """
+    # For now, return a static plan
+    return {
+        "mission_id": "plan-" + str(activity.info().activity_id),
+        "waypoints": [
+            {"type": "TAKEOFF", "alt": 10},
+            {"type": "WAYPOINT", "lat": -35.363, "lon": 149.165, "alt": 20},
+            {"type": "LAND"}
+        ]
+    }
+
+@activity.defn
+async def find_available_drone() -> str:
+    """
+    Queries AWS IoT Fleet Index via FleetDispatcher.
+    Returns drone_id or raises ApplicationError if none found.
+    """
+    import boto3
+
+    # For MVP, we instantiate here.
+    iot = boto3.client('iot', region_name='ap-southeast-2')
+
+    # Query: connected AND idle AND type=drone
+    query = "connectivity.connected:true AND shadow.reported.orchestrator.status:IDLE AND attributes.type:aether-drone"
+
+    try:
+        response = iot.search_index(queryString=query)
+        things = response.get('things', [])
+        if not things:
+            raise RuntimeError("No available drones")
+
+        return things[0]['thingName']
+    except Exception as e:
+        # Rethrow as RuntimeError to trigger retry?
+        raise RuntimeError(f"Failed to find drone: {e}")
+
+@activity.defn
+async def assign_mission_to_drone(drone_id: str, mission_plan: dict) -> str:
+    """
+    Signals the DroneEntityWorkflow.
+    """
+    from temporalio.client import Client
+    import os
+    
+    temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
+    client = await Client.connect(temporal_addr)
+    
+    from workflows import DroneEntityWorkflow
+    
+    handle = client.get_workflow_handle(
+        f"entity-{drone_id}"
+    )
+    
+    await handle.signal(DroneEntityWorkflow.assign_mission, mission_plan)
+    return f"Assigned to {drone_id}"
