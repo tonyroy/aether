@@ -1,3 +1,4 @@
+from typing import Any
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 from datetime import timedelta
@@ -8,7 +9,7 @@ from datetime import timedelta
 @workflow.defn
 class MissionWorkflow:
     @workflow.run
-    async def run(self, drone_id: str, mission_plan: object):
+    async def run(self, drone_id: str, mission_plan: Any):
         workflow.logger.info(f"Starting mission for {drone_id}")
         
         # 0. Pre-flight Checks

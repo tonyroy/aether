@@ -1,5 +1,6 @@
 import pytest
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 from src.workflows import MissionWorkflow
@@ -20,7 +21,7 @@ async def test_mission_safety_battery_failure():
             # Simulate check failure
             # In real life, this activity would query telemetry
             if constraints.get("min_battery_start", 0) > 20: # Drone has 20
-                raise RuntimeError("Preflight Check Failed: Battery 20% < Required 30%")
+                raise ApplicationError("Preflight Check Failed: Battery 20% < Required 30%", non_retryable=True)
             return True
 
         @activity.defn(name="send_command")
@@ -50,4 +51,7 @@ async def test_mission_safety_battery_failure():
                     task_queue="mission-queue",
                 )
             
-            assert "Preflight Check Failed" in str(excinfo.value)
+            # Check cause
+            assert excinfo.value.cause is not None
+            assert excinfo.value.cause.cause is not None
+            assert "Preflight Check Failed" in str(excinfo.value.cause.cause)
