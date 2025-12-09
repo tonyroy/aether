@@ -24,7 +24,10 @@ def provision_drone(drone_id: str, output_dir: str = "../../certs"):
     
     # 1. Create IoT Thing
     try:
-        thing_response = iot.create_thing(thingName=drone_id)
+        thing_response = iot.create_thing(
+            thingName=drone_id,
+            attributePayload={'attributes': {'type': 'aether-drone'}}
+        )
         print(f"✅ Created IoT Thing: {drone_id}")
     except iot.exceptions.ResourceAlreadyExistsException:
         print(f"ℹ️  IoT Thing {drone_id} already exists")
