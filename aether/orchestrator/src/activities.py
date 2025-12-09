@@ -142,3 +142,40 @@ async def assign_mission_to_drone(drone_id: str, mission_plan: dict) -> str:
     
     await handle.signal(DroneEntityWorkflow.assign_mission, mission_plan)
     return f"Assigned to {drone_id}"
+
+@activity.defn
+async def check_preflight(drone_id: str, constraints: dict) -> bool:
+    """
+    Verifies that the drone meets mission constraints (Battery, etc).
+    Queries the Device Shadow.
+    """
+    import boto3
+    import json
+    
+    if not constraints:
+        return True
+        
+    min_battery = constraints.get("min_battery_start", 0)
+    if min_battery == 0:
+        return True
+        
+    iot = boto3.client('iot-data', region_name='ap-southeast-2')
+    
+    try:
+        # Get Shadow
+        response = iot.get_thing_shadow(thingName=drone_id)
+        payload = json.loads(response['payload'].read())
+        
+        reported = payload.get("state", {}).get("reported", {})
+        battery = reported.get("battery", 0)
+        
+        logger.info(f"Preflight Check {drone_id}: Battery {battery}% (Min {min_battery}%)")
+        
+        if battery < min_battery:
+            raise RuntimeError(f"Battery too low: {battery}% < {min_battery}%")
+            
+        return True
+        
+    except Exception as e:
+        logger.error(f"Preflight failed: {e}")
+        raise RuntimeError(f"Preflight Check Failed: {e}")

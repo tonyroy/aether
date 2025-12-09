@@ -8,6 +8,29 @@
             "type": "string",
             "description": "Unique identifier for this plan version."
         },
+        "constraints": {
+            "type": "object",
+            "description": "Safety constraints required to start the mission.",
+            "properties": {
+                "min_battery_start": {
+                    "type": "number",
+                    "description": "Minimum battery percentage required (0-100).",
+                    "default": 30
+                },
+                "max_wind_speed": {
+                    "type": "number",
+                    "description": "Maximum allowed wind speed in m/s.",
+                    "default": 10
+                },
+                "required_sensors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of required sensors (e.g. GPS, LIDAR)."
+                }
+            }
+        },
         "waypoints": {
             "type": "array",
             "description": "List of navigation waypoints (MAV_CMD_NAV_WAYPOINT).",

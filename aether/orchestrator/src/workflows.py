@@ -1,4 +1,5 @@
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 from datetime import timedelta
 
 # Import activity definitions for type hints if needed, or string names
@@ -7,9 +8,29 @@ from datetime import timedelta
 @workflow.defn
 class MissionWorkflow:
     @workflow.run
-    async def run(self, drone_id: str, mission_plan: list):
+    async def run(self, drone_id: str, mission_plan: object):
         workflow.logger.info(f"Starting mission for {drone_id}")
         
+        # 0. Pre-flight Checks
+        constraints = mission_plan.get("constraints", {}) if isinstance(mission_plan, dict) else {}
+        # Note: mission_plan argument type hints say 'list' but MissionRequestWorkflow sends 'dict' (the plan).
+        # We need to handle both legacy list-of-waypoints and new dict-plan.
+        
+        waypoints = []
+        if isinstance(mission_plan, list):
+             waypoints = mission_plan
+        elif isinstance(mission_plan, dict):
+             waypoints = mission_plan.get("waypoints", [])
+             constraints = mission_plan.get("constraints", {})
+        
+        if constraints:
+            await workflow.execute_activity(
+                "check_preflight",
+                args=[drone_id, constraints],
+                start_to_close_timeout=timedelta(seconds=10),
+                retry_policy=RetryPolicy(maximum_attempts=1)
+            )
+
         # 1. Arm Drone
         await workflow.execute_activity(
             "send_command",
@@ -25,7 +46,7 @@ class MissionWorkflow:
         )
         
         # 3. Simulate Waypoints
-        for wp in mission_plan:
+        for wp in waypoints:
             workflow.logger.info(f"Going to waypoint {wp}")
             await workflow.sleep(timedelta(seconds=5))
         # 4. Land
@@ -136,7 +157,7 @@ class MissionRequestWorkflow:
         
         # 2. Find Drone (with Retry)
         # We assume 'find_available_drone' raises an error if no drone is found, triggering retry.
-        retry_policy = workflow.RetryPolicy(
+        retry_policy = RetryPolicy(
              initial_interval=timedelta(seconds=2),
              maximum_interval=timedelta(seconds=30),
              # indefinite retry by default if maximum_attempts not set
