@@ -11,7 +11,16 @@ def mock_iot():
 
 @pytest.fixture
 def mock_temporal():
-    return AsyncMock()
+    m = MagicMock() # Client itself is sync/async mix. get_workflow_handle is sync.
+    # We can rely on auto-speccing or just use MagicMock which handles sync calls.
+    # But we need async methods to be awaitable.
+    # Easiest: Use MagicMock, and make specific async methods AsyncMock?
+    # Or keep AsyncMock and overwrite get_workflow_handle?
+    
+    am = AsyncMock()
+    # get_workflow_handle is synchronous in the real SDK, so we must mock it as such
+    am.get_workflow_handle = MagicMock() 
+    return am
 
 @pytest.fixture
 def dispatcher(mock_temporal, mock_iot):
