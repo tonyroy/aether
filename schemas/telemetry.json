@@ -68,6 +68,18 @@
         "remaining": {
             "type": "number",
             "description": "Remaining battery percentage (0-100)."
+        },
+        "armed": {
+            "type": "boolean",
+            "description": "True if motors are armed."
+        },
+        "mode": {
+            "type": "string",
+            "description": "Flight mode (e.g. GUIDED, AUTO)."
+        },
+        "system_status": {
+            "type": "integer",
+            "description": "MAVLink system status."
         }
     },
     "required": [

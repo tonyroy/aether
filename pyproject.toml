@@ -1,0 +1,31 @@
+[project]
+name = "aether-drones"
+version = "0.1.0"
+description = "Aether: Drone Orchestration Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "temporalio>=1.20.0",
+    "pytest>=8.0",
+    "pytest-asyncio",
+    "boto3",
+    "awsiotsdk",
+    "awscrt",
+    "paho-mqtt", # For tools/mock_iot_events
+    "pymavlink",
+    "datamodel-code-generator>=0.25.0",
+    "python-dotenv",
+    "aether-common",
+]
+
+[tool.uv.workspace]
+members = [
+    "aether/orchestrator", 
+    "aether/common",
+    # "aether/cloud-bridge" # Exclude bridge for now as it's a Docker build with requirements.txt
+    # or better: convert bridge to pyproject.toml too? Let's leave it flexible via requirements.txt for now
+    # but tools/ needs packages.
+]
+
+# We need aether-common to be available to top-level scripts
+[tool.uv.sources]
+aether-common = { workspace = true }

@@ -99,49 +99,41 @@ async def plan_mission(request: object) -> dict:
     }
 
 @activity.defn
-async def find_available_drone() -> str:
+async def find_available_drone(constraints: dict = None) -> str:
     """
-    Queries AWS IoT Fleet Index via FleetDispatcher.
-    Returns drone_id or raises ApplicationError if none found.
+    Finds a suitable drone using FleetDispatcher.
+    Returns drone_id.
     """
     import boto3
+    import os
+    from temporalio.client import Client
+    from src.dispatcher import FleetDispatcher
 
-    # For MVP, we instantiate here.
     iot = boto3.client('iot', region_name='ap-southeast-2')
-
-    # Query: connected AND idle AND type=drone
-    query = "connectivity.connected:true AND shadow.reported.orchestrator.status:IDLE AND attributes.type:aether-drone"
-
-    try:
-        response = iot.search_index(queryString=query)
-        things = response.get('things', [])
-        if not things:
-            raise RuntimeError("No available drones")
-
-        return things[0]['thingName']
-    except Exception as e:
-        # Rethrow as RuntimeError to trigger retry?
-        raise RuntimeError(f"Failed to find drone: {e}")
+    # Temporal client not strictly needed for 'find', but dispatcher init requires it
+    # We could make dispatcher init lazy or optional
+    temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
+    temporal = await Client.connect(temporal_addr)
+    
+    dispatcher = FleetDispatcher(temporal, iot)
+    return await dispatcher.find_drone(constraints)
 
 @activity.defn
 async def assign_mission_to_drone(drone_id: str, mission_plan: dict) -> str:
     """
-    Signals the DroneEntityWorkflow.
+    Signals the drone workflow using FleetDispatcher.
     """
-    from temporalio.client import Client
+    import boto3
     import os
-    
+    from temporalio.client import Client
+    from src.dispatcher import FleetDispatcher
+
+    iot = boto3.client('iot', region_name='ap-southeast-2')
     temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
-    client = await Client.connect(temporal_addr)
+    temporal = await Client.connect(temporal_addr)
     
-    from workflows import DroneEntityWorkflow
-    
-    handle = client.get_workflow_handle(
-        f"entity-{drone_id}"
-    )
-    
-    await handle.signal(DroneEntityWorkflow.assign_mission, mission_plan)
-    return f"Assigned to {drone_id}"
+    dispatcher = FleetDispatcher(temporal, iot)
+    return await dispatcher.assign_mission(drone_id, mission_plan)
 
 @activity.defn
 async def check_preflight(drone_id: str, constraints: dict) -> bool:

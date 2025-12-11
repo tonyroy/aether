@@ -17,7 +17,7 @@ async def test_mission_request_flow_success():
             return {"mission_id": "plan-123", "waypoints": []}
 
         @activity.defn(name="find_available_drone")
-        async def mock_find() -> str:
+        async def mock_find(constraints: dict = None) -> str:
             return "drone-1"
 
         @activity.defn(name="assign_mission_to_drone")
@@ -59,7 +59,7 @@ async def test_mission_request_queuing():
             return {"mission_id": "queue-123"}
 
         @activity.defn(name="find_available_drone")
-        async def mock_find_with_retry() -> str:
+        async def mock_find_with_retry(constraints: dict = None) -> str:
             nonlocal find_attempts
             find_attempts += 1
             if find_attempts < 3:
@@ -69,8 +69,8 @@ async def test_mission_request_queuing():
 
         @activity.defn(name="assign_mission_to_drone")
         async def mock_assign(drone_id: str, plan: dict) -> str:
+            assert drone_id == "drone-delayed"
             return "assigned"
-
 
         async with Worker(
             env.client,

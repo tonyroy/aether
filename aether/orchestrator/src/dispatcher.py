@@ -9,15 +9,13 @@ class FleetDispatcher:
         self.temporal = temporal_client
         self.iot = iot_client
 
-    async def dispatch_mission(self, mission_plan: dict) -> str:
+    async def find_drone(self, constraints: dict = None) -> str:
         """
-        Dispatches a mission to an available drone.
-        1. Query AWS IoT Index for IDLE & ONLINE drones.
-        2. Select the best drone (currently first available).
-        3. Signal the DroneEntityWorkflow to accept the mission.
+        Finds an available drone matching the criteria.
+        Returns the drone_id (thingName) or raises NoDroneAvailableError.
         """
-        # Query: connected AND idle AND type=drone
-        # Note: 'attributes.type' is a custom attribute we assume exists on the Thing
+        # Base Query: connected AND idle AND type=drone
+        # Future: Append constraint filters from 'constraints' dict
         query = "connectivity.connected:true AND shadow.reported.orchestrator.status:IDLE AND attributes.type:aether-drone"
 
         # Execute Search
@@ -32,13 +30,24 @@ class FleetDispatcher:
             raise NoDroneAvailableError("No drones available matching criteria")
 
         # Select first one (Naïve dispatch)
-        # Future: Sort by battery level or proximity
         selected_drone = things[0]['thingName']
+        return selected_drone
 
+    async def assign_mission(self, drone_id: str, mission_plan: dict) -> str:
+        """
+        Signals the specific DroneEntityWorkflow to accept the mission.
+        """
         # Get Temporal Workflow Handle
-        handle = self.temporal.get_workflow_handle(f"entity-{selected_drone}")
+        handle = self.temporal.get_workflow_handle(f"entity-{drone_id}")
 
         # Signal the Workflow
         await handle.signal(DroneEntityWorkflow.assign_mission, mission_plan)
 
-        return selected_drone
+        return drone_id
+
+    async def dispatch_mission(self, mission_plan: dict) -> str:
+        """
+        Legacy/Convenience method: Finds AND Assigns in one go.
+        """
+        drone_id = await self.find_drone(mission_plan.get("constraints"))
+        return await self.assign_mission(drone_id, mission_plan)

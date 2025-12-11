@@ -19,9 +19,9 @@ async def main():
     response = iot.list_things(maxResults=100)
     things = response.get('things', [])
 
-    print(f"Found {len(things)} drones in registry.")
+    print(f"Found {len(things)} things in AWS IOT registry.")
 
-    # 2. Connect to Temporal
+    # 2. Connect to Temporal 
     temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
     client = await Client.connect(temporal_addr)
 

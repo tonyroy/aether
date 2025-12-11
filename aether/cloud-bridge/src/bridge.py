@@ -1,6 +1,12 @@
 import logging
 import asyncio
+from typing import Optional
 from .mavlink import MavlinkConnection
+try:
+    from aether_common.telemetry import TelemetrySample
+except ImportError:
+    # Fallback or error if common not installed
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -63,85 +69,86 @@ class CloudBridge:
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
-                payload = {
-                    'type': 'GLOBAL_POSITION_INT',
-                    'lat': msg.lat / 1e7,
-                    'lon': msg.lon / 1e7,
-                    'alt': msg.alt / 1000.0,
-                    'relative_alt': msg.relative_alt / 1000.0,
-                    'vx': msg.vx / 100.0,
-                    'vy': msg.vy / 100.0,
-                    'vz': msg.vz / 100.0,
-                    'hdg': msg.hdg / 100.0
-                }
+                sample = TelemetrySample(
+                    type='GLOBAL_POSITION_INT',
+                    # timestamp will be defaulted or set if needed
+                    lat=msg.lat / 1e7,
+                    lon=msg.lon / 1e7,
+                    alt=msg.alt / 1000.0,
+                    relative_alt=msg.relative_alt / 1000.0,
+                    vx=msg.vx / 100.0,
+                    vy=msg.vy / 100.0,
+                    vz=msg.vz / 100.0,
+                    hdg=msg.hdg / 100.0
+                )
+                payload = sample.to_dict()
+
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
-                    logger.info(f"[SIM] Position: {payload}")
+                    logger.info(f"Position: {payload}")
                 
                 # Track for Shadow
                 shadow_state['position'] = {
-                    'lat': msg.lat / 1e7,
-                    'lon': msg.lon / 1e7,
-                    'alt': msg.relative_alt / 1000.0
+                    'lat': sample.lat,
+                    'lon': sample.lon,
+                    'alt': sample.relative_alt
                 }
             
             elif msg_type == 'ATTITUDE':
-                payload = {
-                    'type': 'ATTITUDE',
-                    'roll': msg.roll,
-                    'pitch': msg.pitch,
-                    'yaw': msg.yaw
-                }
+                sample = TelemetrySample(
+                    type='ATTITUDE',
+                    roll=msg.roll,
+                    pitch=msg.pitch,
+                    yaw=msg.yaw
+                )
+                payload = sample.to_dict()
+                
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
-                    logger.info(f"[SIM] Attitude: {payload}")
+                    logger.info(f"Attitude: {payload}")
             
             elif msg_type == 'HEARTBEAT':
-                # Only process heartbeats from the autopilot (compid 1) to avoid noise from other components
-                if msg.get_srcComponent() != 1:  # MAV_COMP_ID_AUTOPILOT1
+                # Only process heartbeats from the autopilot (compid 1)
+                if msg.get_srcComponent() != 1:
                     continue
                     
-                # Get flight mode name from mode mapping
                 mode_name = "UNKNOWN"
                 if hasattr(self.mavlink.master, 'flightmode'):
                     mode_name = self.mavlink.master.flightmode
                 
-                # Use master.motors_armed() which tracks the autopilot state reliably
                 is_armed = self.mavlink.master.motors_armed()
                 
-                # Debug logging to investigate why armed might be False when flying
-                if not is_armed and msg.base_mode & 128:
-                    logger.warning(f"Mismatch: msg.base_mode={msg.base_mode} implies ARMED, but motors_armed() is False")
-                
-                payload = {
-                    'type': 'HEARTBEAT',
-                    'mode': mode_name,
-                    'armed': is_armed,
-                    'system_status': msg.system_status
-                }
+                sample = TelemetrySample(
+                    type='HEARTBEAT',
+                    mode=mode_name,
+                    armed=is_armed,
+                    system_status=msg.system_status
+                )
+                payload = sample.to_dict()
+
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
-                    logger.info(f"[SIM] Heartbeat: Mode={mode_name}, Armed={payload['armed']}")
+                    logger.info(f"Heartbeat: {payload}")
                 
-                # Track for Shadow
                 shadow_state['mode'] = mode_name
-                shadow_state['armed'] = payload['armed']
+                shadow_state['armed'] = is_armed
             
             elif msg_type == 'BATTERY_STATUS':
-                payload = {
-                    'type': 'BATTERY_STATUS',
-                    'voltage': msg.voltages[0] / 1000.0 if len(msg.voltages) > 0 else 0,
-                    'remaining': msg.battery_remaining
-                }
+                sample = TelemetrySample(
+                    type='BATTERY_STATUS',
+                    voltage=msg.voltages[0] / 1000.0 if len(msg.voltages) > 0 else 0,
+                    remaining=msg.battery_remaining
+                )
+                payload = sample.to_dict()
+
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
-                    logger.info(f"[SIM] Battery: {payload}")
+                    logger.info(f"Battery: {payload}")
                 
-                # Track for Shadow
                 shadow_state['battery'] = msg.battery_remaining
             
             # Update Shadow every 5 seconds with critical state

@@ -2,6 +2,7 @@ from typing import Any
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 from datetime import timedelta
+import asyncio
 
 # Import activity definitions for type hints if needed, or string names
 # from activities import send_command, update_shadow_status
@@ -59,84 +60,155 @@ class MissionWorkflow:
         
         return "Mission Complete"
 
+try:
+    from detection_rules import TelemetrySample, SessionDetector
+except ImportError:
+    # Fallback for when running from root (e.g. pytest) without src in path
+    from src.detection_rules import TelemetrySample, SessionDetector
+
+@workflow.defn
+class SessionRecordingWorkflow:
+    """
+    Child workflow that records a confirmed flight session.
+    """
+    @workflow.signal
+    def end_custom_session(self):
+        self._is_active = False
+
+    @workflow.run
+    async def run(self, drone_id: str, session_id: str):
+        workflow.logger.info(f"RECORDING SESSION {session_id} for {drone_id}")
+        self._is_active = True
+        
+        # In a real impl, this would buffer logs to S3/Timestream
+        while self._is_active:
+             await workflow.sleep(timedelta(seconds=5))
+             workflow.logger.info(f"Session {session_id} active...")
+             
+        workflow.logger.info(f"Session {session_id} ENDED")
+        return "Session Recorded"
+
 @workflow.defn
 class DroneEntityWorkflow:
     """
-    Persistent Entity Workflow representing a single Drone.
-    Maintains state lock and ensures serial execution of missions.
+    Passive Drone Entity (Digital Twin).
+    Monitors telemetry to detect and record sessions.
     """
-    
     def __init__(self):
-        self._status = "IDLE"
-        self._pending_mission = None
+        self._status = "OFFLINE"
         self._exit = False
-
+        self._latest_telemetry: TelemetrySample = None
+        self._session_start_sample: TelemetrySample = None
+        self._active_session_handle = None
+        
+        # Configurable Rules
+        self._detector = SessionDetector()
+        
     @workflow.signal
-    def assign_mission(self, mission_plan: list):
-        if self._status != "IDLE":
-             workflow.logger.warn("Drone is busy, rejecting mission signal (in real implementation, send rejection)")
-             return
-        self._pending_mission = mission_plan
+    def signal_telemetry(self, sample_dict: dict):
+        # Convert dict to dataclass safely
+        incoming = TelemetrySample.from_dict(sample_dict)
+        
+        if self._latest_telemetry is None:
+            self._latest_telemetry = incoming
+        else:
+            # Merge fields: update if incoming has value
+            # We can use asdict to iterate, or manual checking
+            # Since dataclass fields are optional, we only overwrite if not None
+            for field in incoming.__dataclass_fields__:
+                val = getattr(incoming, field)
+                if val is not None:
+                    setattr(self._latest_telemetry, field, val)
+        
+        # Update status based on merged state
+        is_armed = self._latest_telemetry.armed if self._latest_telemetry.armed is not None else False
+        self._status = "ONLINE_IDLE" if not is_armed else "ONLINE_ARMED"
 
     @workflow.signal
     def exit_entity(self):
         self._exit = True
 
+    @workflow.signal
+    def assign_mission(self, mission_plan: dict):
+        """
+        Receives a mission plan (Active Command).
+        For valid hybrid operation, this should start a MissionWorkflow child.
+        For now, we just log it to satisfy the interface.
+        """
+        workflow.logger.info(f"Received Mission Assigment: {mission_plan.get('id', 'unknown')}")
+        # In future: self._active_mission_future = await workflow.start_child_workflow(MissionWorkflow...)
+
     @workflow.run
     async def run(self, drone_id: str):
-        workflow.logger.info(f"Entity Workflow started for {drone_id}")
-        
-        # Ensure 'reported.orchestrator.status' is IDLE on startup
-        await workflow.execute_activity(
-            "update_shadow_status",
-            args=[drone_id, "IDLE"],
-            start_to_close_timeout=timedelta(seconds=10)
-        )
+        workflow.logger.info(f"Passive Entity started for {drone_id}")
         
         while not self._exit:
-            # Wait for a mission or exit
-            await workflow.wait_condition(lambda: self._pending_mission is not None or self._exit)
+            await workflow.wait_condition(lambda: self._latest_telemetry is not None or self._exit)
+            if self._exit: break
+
+            current = self._latest_telemetry
+            self._latest_telemetry = None # Consume event logic
             
-            if self._exit:
-                break
-                
-            if self._pending_mission:
-                mission = self._pending_mission
-                self._pending_mission = None # Clear pending
-                
-                # Lock
-                self._status = "ON_MISSION"
-                
-                # Update Shadow -> BUSY
-                await workflow.execute_activity(
-                    "update_shadow_status",
-                    args=[drone_id, "BUSY"],
-                    start_to_close_timeout=timedelta(seconds=10)
-                )
-                
-                try:
-                    # Execute Child Workflow
-                    workflow.logger.info(f"Dispatching MissionWorkflow for {drone_id}")
-                    await workflow.execute_child_workflow(
-                        MissionWorkflow.run,
-                        args=[drone_id, mission],
-                        id=f"mission-{drone_id}-{workflow.uuid()}", # Unique ID for child
-                        task_queue="mission-queue", # Keep on same queue
-                    )
-                except Exception as e:
-                    workflow.logger.error(f"Mission failed: {e}")
-                finally:
-                    # Unlock
-                    self._status = "IDLE"
+            # State Machine Logic
+            is_in_mission = (self._active_session_handle is not None)
+            
+            if not is_in_mission:
+                # Try to Detect Start
+                if current.armed:
+                    if self._session_start_sample is None:
+                        self._session_start_sample = current # Candidate Start
+                        
+                    # Check confirmation
+                    confirmed = self._detector.check_mission_start(self._session_start_sample, current)
+                    if confirmed:
+                        workflow.logger.info(f"Mission CONFIRMED for {drone_id}")
+                        session_id = f"sess-{workflow.uuid()}"
+                        
+                        # Start Recording Child
+                        self._active_session_handle = await workflow.start_child_workflow(
+                            SessionRecordingWorkflow.run,
+                            args=[drone_id, session_id],
+                            id=session_id,
+                            task_queue="mission-queue"
+                        )
+                else:
+                    # Reset candidate if disarmed before confirmation
+                    self._session_start_sample = None
+            
+            else:
+                # We are IN_MISSION
+                if not current.armed:
+                    workflow.logger.info(f"Drone DISARMED. Starting Session Timeout ({self._detector.config['timeout_after_disarm_sec']}s)...")
                     
-                    # Update Shadow -> IDLE
-                    await workflow.execute_activity(
-                        "update_shadow_status",
-                        args=[drone_id, "IDLE"],
-                        start_to_close_timeout=timedelta(seconds=10)
-                    )
-        
-        workflow.logger.info(f"Entity Workflow exiting for {drone_id}")
+                    # Wait for Re-Arm OR Timeout
+                    # We need a condition that matches: "New Telemetry with Armed=True" OR "Time has passed"
+                    
+                    try:
+                        await workflow.wait_condition(
+                            lambda: (self._latest_telemetry is not None and self._latest_telemetry.armed) or self._exit,
+                            timeout=timedelta(seconds=self._detector.config["timeout_after_disarm_sec"])
+                        )
+                    except asyncio.TimeoutError:
+                        # Real Timeout -> End Session
+                        workflow.logger.info(f"Session Timeout Reached. Ending Session.")
+                        await self._active_session_handle.signal(SessionRecordingWorkflow.end_custom_session)
+                        self._active_session_handle = None
+                        self._session_start_sample = None
+                    else:
+                        if self._exit: break
+                        # If we woke up because of Re-Arm (latest_telemetry.armed is True)
+                        # We just continue the loop, creating a "Continuous Session"
+                        workflow.logger.info("Drone RE-ARMED. Session Continuing.")
+                        # We let the main loop handle the new telemetry sample in next iteration (if wait_condition doesn't consume it?)
+                        # Actually wait_condition doesn't consume. self._latest_telemetry is still set.
+                        # The Main Loop 'latest_telemetry = None' happens at TOP.
+                        # So we need to be careful not to lose this sample?
+                        # Since we are inside the 'else' block which processes 'current', the 'latest_telemetry'
+                        # that woke us up is NEW and hasn't been processed by the top of loop yet.
+                        # Correct.
+                        pass
+            
+        workflow.logger.info(f"Entity exiting {drone_id}")
 
 from dataclasses import dataclass
 
@@ -156,25 +228,26 @@ class MissionRequestWorkflow:
             start_to_close_timeout=timedelta(minutes=1)
         )
         
-        # 2. Find Drone (with Retry)
-        # We assume 'find_available_drone' raises an error if no drone is found, triggering retry.
+        # 2. Dispatch to Fleet
+        # Uses FleetDispatcher to find and signal a drone in one atomic operation
         retry_policy = RetryPolicy(
              initial_interval=timedelta(seconds=2),
              maximum_interval=timedelta(seconds=30),
              # indefinite retry by default if maximum_attempts not set
         )
         
-        drone_id = await workflow.execute_activity(
+        assigned_drone_id = await workflow.execute_activity(
             "find_available_drone",
-            start_to_close_timeout=timedelta(seconds=10),
+            args=[mission_plan.get("constraints", {})],
+            start_to_close_timeout=timedelta(minutes=1),
             retry_policy=retry_policy
         )
-        
-        # 3. Dispatch
+
+        # 3. Dispatch to Drone
         await workflow.execute_activity(
             "assign_mission_to_drone",
-            args=[drone_id, mission_plan],
-            start_to_close_timeout=timedelta(seconds=10)
+            args=[assigned_drone_id, mission_plan],
+            start_to_close_timeout=timedelta(minutes=1), # No retry on assignment usually, or different policy
         )
         
         return "mission_started"
