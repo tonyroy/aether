@@ -27,6 +27,7 @@ def main():
     parser.add_argument("-L", "--lon", type=float, default=149.165230, help="Longitude (default: 149.165230)")
     parser.add_argument("-a", "--aws", action="store_true", help="Enable AWS IoT Core mode")
     parser.add_argument("--endpoint", type=str, default="alddhtwebpu3w-ats.iot.ap-southeast-2.amazonaws.com", help="AWS IoT Endpoint")
+    parser.add_argument("--limit-logs", action="store_true", help="Limit SITL logs to ~10MB and auto-rotate")
     
     args = parser.parse_args()
 
@@ -36,6 +37,7 @@ def main():
     lon = args.lon
     use_aws = args.aws
     iot_endpoint = args.endpoint
+    limit_logs = args.limit_logs
 
     # Calculate Ports
     offset = instance_id * 10
@@ -78,6 +80,21 @@ def main():
         "-e", f"SERIAL1=tcp:{port_bridge}",
         "aether-drone-node"
     ]
+
+    if limit_logs:
+        # Use tmpfs limited to 20MB for logs
+        # And set ArduPilot params to respect small space (LOG_FILE_MB_FREE=5 -> leave 5MB free)
+        # So we use ~15MB of logs.
+        sitl_cmd.insert(3, "--tmpfs")
+        sitl_cmd.insert(4, "/home/ardupilot/ardupilot/logs:size=20M")
+        
+        # Inject params via CUSTOM_PARAMS
+        # LOG_FILE_MB_FREE=5 (Leave 5MB free)
+        # LOG_DISARMED=0 (Don't log when disarmed)
+        # LOG_BACKEND_TYPE=1 (File only)
+        sitl_cmd.append("-e")
+        sitl_cmd.append("CUSTOM_PARAMS=LOG_FILE_MB_FREE=5,LOG_DISARMED=0,LOG_BACKEND_TYPE=1")
+    
     run_command(sitl_cmd)
 
     # 2. Start Cloud Bridge
@@ -123,6 +140,9 @@ def main():
 
     print(f"Done! Drone {instance_id} is flying.")
     print(f"Connect MAVProxy: mavproxy.py --master=tcp:127.0.0.1:{port_user} --console")
+
+    if args.limit_logs:
+        print("  Logs: Limited to ~10MB (Rotation Enabled)")
 
     if use_aws:
         print("AWS IoT Topics:")

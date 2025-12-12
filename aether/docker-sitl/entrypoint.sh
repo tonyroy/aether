@@ -49,6 +49,24 @@ echo "========================================"
 cd "${ARDUPILOT_HOME}"
 
 # Build the command
+# Handle Custom Parameters (passed via env var)
+# Format: "PARAM1=VAL1,PARAM2=VAL2" or newlines
+if [ -n "${CUSTOM_PARAMS}" ]; then
+    echo "Applying Custom Params: ${CUSTOM_PARAMS}"
+    echo "${CUSTOM_PARAMS}" | tr ',' '\n' > /home/ardupilot/custom_defaults.parm
+    
+    if [ -n "${DEFAULTS}" ]; then
+        DEFAULTS="${DEFAULTS},/home/ardupilot/custom_defaults.parm"
+    else
+        DEFAULTS="/home/ardupilot/custom_defaults.parm"
+    fi
+fi
+
+# Helper for disabling logs explicitly (legacy support)
+if [ "${DISABLE_LOGS}" = "true" ] || [ "${DISABLE_LOGS}" = "1" ]; then
+   echo "LOG_BACKEND_TYPE 0" >> /home/ardupilot/custom_defaults.parm
+fi
+
 CMD="${ARDUPILOT_HOME}/build/sitl/bin/arducopter"
 CMD="$CMD --model ${MODEL}"
 CMD="$CMD --speedup ${SPEEDUP}"
