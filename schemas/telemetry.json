@@ -10,7 +10,8 @@
                 "GLOBAL_POSITION_INT",
                 "ATTITUDE",
                 "BATTERY_STATUS",
-                "HEARTBEAT"
+                "HEARTBEAT",
+                "HOME_POSITION"
             ]
         },
         "timestamp": {
