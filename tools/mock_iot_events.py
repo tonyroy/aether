@@ -29,56 +29,38 @@ TEMPORAL_HOST = "localhost:7233"
 MIN_DURATION_SEC = 30
 MIN_DISTANCE_M = 10
 
-class DroneState:
+from aether_common.detection import MissionDetector, DetectorState
+
+class DroneStateWrapper:
+    """Wrapper to hold state for the shared detector logic."""
     def __init__(self, drone_id):
         self.drone_id = drone_id
-        self.start_sample: Optional[TelemetrySample] = None
-        self.last_sample: Optional[TelemetrySample] = None
-        self.is_in_mission = False
+        self.state = DetectorState() # Initial IDLE
 
     def process(self, sample: TelemetrySample) -> bool:
         """
-        Returns True if a NEW mission is detected.
+        Delegates checking to MissionDetector pure logic.
+        Returns True if MISSION_STARTED event occurred.
         """
-        # 1. If Disarmed -> Reset
-        if not sample.armed:
-            if self.start_sample:
-                logger.debug(f"{self.drone_id}: Disarmed. Resetting candidate.")
-            self.start_sample = None
-            self.is_in_mission = False
-            return False
-
-        # 2. If Armed...
-        if self.is_in_mission:
-            return False # Already detected
-
-        # 3. If Candidate Start
-        if self.start_sample is None:
-            logger.info(f"{self.drone_id}: ARM DETECTED. Starting checks...")
-            self.start_sample = sample
-            return False
-
-        # 4. Check Duration
-        duration = sample.timestamp - self.start_sample.timestamp
-        if duration < MIN_DURATION_SEC:
-            return False
-
-        # 5. Check Distance
-        # Simple Euclidean approximation for local test
-        dist = math.sqrt(
-            (sample.lat - self.start_sample.lat)**2 + 
-            (sample.lon - self.start_sample.lon)**2
-        ) * 111139 # approx meters per degree
+        new_state, event = MissionDetector.evaluate(self.state, sample)
         
-        # Check Altitude as well?
-        alt_diff = abs((sample.alt or 0) - (self.start_sample.alt or 0)) 
-
-        if dist > MIN_DISTANCE_M or alt_diff > 2.0:
-            logger.info(f"{self.drone_id}: MISSION CONFIRMED! (Dur={duration:.1f}s, Dist={dist:.1f}m)")
-            self.is_in_mission = True
-            return True
+        # Log transitions
+        if new_state.state_name != self.state.state_name:
+            logger.info(f"{self.drone_id}: State Change {self.state.state_name} -> {new_state.state_name}")
             
+        self.state = new_state
+        
+        if event == "MISSION_STARTED":
+            logger.info(f"{self.drone_id}: ===> MISSION CONFIRMED <===")
+            return True
+        elif event == "MISSION_ENDED":
+             logger.info(f"{self.drone_id}: Mission Ended")
+             
         return False
+        
+    @property
+    def start_sample(self):
+        return self.state.start_sample
 
 async def main():
     # 1. Connect to Temporal
@@ -90,7 +72,7 @@ async def main():
         return
 
     # 2. State Cache
-    drone_states: Dict[str, DroneState] = {}
+    drone_states: Dict[str, DroneStateWrapper] = {}
 
     # 3. MQTT Handler
     def on_connect(client, userdata, flags, rc):
@@ -110,7 +92,7 @@ async def main():
             
             # Update State
             if drone_id not in drone_states:
-                drone_states[drone_id] = DroneState(drone_id)
+                drone_states[drone_id] = DroneStateWrapper(drone_id)
             
             detector = drone_states[drone_id]
             mission_detected = detector.process(sample)
