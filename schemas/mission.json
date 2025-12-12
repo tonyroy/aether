@@ -1,0 +1,69 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MissionPlan",
+    "description": "A flight plan consisting of a sequence of waypoints.",
+    "type": "object",
+    "properties": {
+        "mission_id": {
+            "type": "string",
+            "description": "Unique identifier for this version of the plan (e.g. hash)."
+        },
+        "timestamp": {
+            "type": "number",
+            "description": "Unix timestamp when this plan was detected/uploaded."
+        },
+        "waypoints": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "seq": {
+                        "type": "integer"
+                    },
+                    "command": {
+                        "type": "integer",
+                        "description": "MAV_CMD enum value"
+                    },
+                    "frame": {
+                        "type": "integer",
+                        "description": "MAV_FRAME enum value"
+                    },
+                    "param1": {
+                        "type": "number"
+                    },
+                    "param2": {
+                        "type": "number"
+                    },
+                    "param3": {
+                        "type": "number"
+                    },
+                    "param4": {
+                        "type": "number"
+                    },
+                    "x": {
+                        "type": "number",
+                        "description": "Latitude or X"
+                    },
+                    "y": {
+                        "type": "number",
+                        "description": "Longitude or Y"
+                    },
+                    "z": {
+                        "type": "number",
+                        "description": "Altitude or Z"
+                    }
+                },
+                "required": [
+                    "seq",
+                    "command",
+                    "x",
+                    "y",
+                    "z"
+                ]
+            }
+        }
+    },
+    "required": [
+        "waypoints"
+    ]
+}

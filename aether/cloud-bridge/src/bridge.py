@@ -66,6 +66,67 @@ class CloudBridge:
             # Forward mission messages to MissionManager
             if self.mission_manager and msg_type in ['MISSION_REQUEST', 'MISSION_ACK', 'MISSION_ITEM_REACHED']:
                 self.mission_manager.on_mavlink_message(msg)
+
+            # --- Flight Plan Sniffing (Passive) ---
+            if msg_type == 'MISSION_ACK':
+                # External upload completed? Triger download.
+                # msg.type==0 means MA_MISSION_ACCEPTED
+                if msg.type == 0: 
+                    logger.info("Mission Upload Detected (ACK). Triggering sync...")
+                    self.mavlink.master.mav.mission_request_list_send(self.mavlink.master.target_system, self.mavlink.master.target_component)
+                    self._mission_downloading = True
+                    self._mission_expected_count = 0
+                    self._mission_items = []
+
+            elif msg_type == 'MISSION_COUNT':
+                 if getattr(self, '_mission_downloading', False):
+                     self._mission_expected_count = msg.count
+                     self._mission_items = []
+                     logger.info(f"Downloading Mission: {msg.count} items expected.")
+                     if msg.count > 0:
+                         self.mavlink.master.mav.mission_request_int_send(self.mavlink.master.target_system, self.mavlink.master.target_component, 0)
+                     else:
+                         self._mission_downloading = False # Empty mission
+
+            elif msg_type == 'MISSION_ITEM_INT':
+                if getattr(self, '_mission_downloading', False):
+                    # Store item
+                    item = {
+                        "seq": msg.seq,
+                        "command": msg.command,
+                        "frame": msg.frame,
+                        "param1": msg.param1,
+                        "param2": msg.param2,
+                        "param3": msg.param3,
+                        "param4": msg.param4,
+                        "x": msg.x / 1e7, # Lat
+                        "y": msg.y / 1e7, # Lon
+                        "z": msg.z        # Alt
+                    }
+                    self._mission_items.append(item)
+                    
+                    if len(self._mission_items) < self._mission_expected_count:
+                        # Request next
+                        next_seq = len(self._mission_items)
+                        self.mavlink.master.mav.mission_request_int_send(self.mavlink.master.target_system, self.mavlink.master.target_component, next_seq)
+                    else:
+                        # Complete!
+                        self._mission_downloading = False
+                        logger.info(f"Mission Download Complete ({len(self._mission_items)} items). Publishing...")
+                        
+                        # Construct Payload (using dict for now to avoid importing generated MissionPlan explicitly in this loop context, 
+                        # though ideally we use it. We'll use dict to match existing pattern for simple publishing)
+                        plan_payload = {
+                            "mission_id": str(time.time()), # Simple ID
+                            "timestamp": time.time(),
+                            "waypoints": self._mission_items
+                        }
+                        
+                        if self.mqtt:
+                            self.mqtt.publish_topic(f"mav/{self.mavlink.drone_id}/mission/detected", plan_payload)
+                        else:
+                            logger.info(f"Detected Plan: {plan_payload}")
+            # --------------------------------------
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
@@ -134,7 +195,38 @@ class CloudBridge:
                     logger.info(f"Heartbeat: {payload}")
                 
                 shadow_state['mode'] = mode_name
+                
+                # Check for transition to ARMED
+                # Store previous state in self if needed, buy for now simple edge detection
+                # We don't have previous state easily here without class member.
+                # Let's rely on the fact that requesting it multiple times is harmless.
+                if is_armed and hasattr(self, '_last_armed_state') and not self._last_armed_state:
+                     logger.info("Drone ARMED - Requesting Home Position")
+                     self.mavlink.request_home_position()
+                
+                self._last_armed_state = is_armed
                 shadow_state['armed'] = is_armed
+
+            elif msg_type == 'HOME_POSITION':
+                sample = TelemetrySample(
+                    type='HOME_POSITION',
+                    lat=msg.latitude / 1e7,
+                    lon=msg.longitude / 1e7,
+                    alt=msg.altitude / 1000.0,
+                    # We can put approach info in other fields if needed, or extend TelemetrySample
+                )
+                payload = sample.to_dict()
+                
+                if self.mqtt:
+                     self.mqtt.publish_telemetry(payload)
+                else: 
+                     logger.info(f"Home Position: {payload}")
+
+                shadow_state['home_position'] = {
+                    'lat': sample.lat,
+                    'lon': sample.lon,
+                    'alt': sample.alt
+                }
             
             elif msg_type == 'BATTERY_STATUS':
                 sample = TelemetrySample(

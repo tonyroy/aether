@@ -300,5 +300,14 @@ class MavlinkConnection:
         # Option B: Set Mode to AUTO (often more robust for straight mission start)
         # But MAV_CMD_MISSION_START is the precise command.
         # Let's also ensure we arm? No, separate command.
+    
+    def request_home_position(self):
+        """Requests the HOME_POSITION from the drone."""
+        # Request message ID 242 (HOME_POSITION)
+        self.send_command_long(
+            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+            242, 0, 0, 0, 0, 0, 0
+        )
+        logger.info("Requested HOME_POSITION")
 
 

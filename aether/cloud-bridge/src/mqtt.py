@@ -57,6 +57,16 @@ class AwsMqttConnection:
         )
         logger.debug(f"Published to {topic}: {payload}")
     
+    def publish_topic(self, topic: str, payload: dict):
+        """Generic publish"""
+        message = json.dumps(payload)
+        self.connection.publish(
+            topic=topic,
+            payload=message,
+            qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        logger.debug(f"Published to {topic}: {payload}")
+    
     def publish_status(self, status: dict):
         """Publish command status (success/failure)"""
         topic = f"mav/{self.client_id}/status"
@@ -201,6 +211,12 @@ class LocalMqttConnection:
 
     def publish_telemetry(self, payload):
         topic = f"mav/{self.client_id}/telemetry"
+        message = json.dumps(payload)
+        self.client.publish(topic, message)
+        logger.debug(f"Published to {topic}: {payload}")
+
+    def publish_topic(self, topic: str, payload: dict):
+        """Generic publish"""
         message = json.dumps(payload)
         self.client.publish(topic, message)
         logger.debug(f"Published to {topic}: {payload}")
