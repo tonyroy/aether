@@ -1,0 +1,96 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MissionStartedEvent",
+    "description": "Enriched event emitted by the Stream Processor when a mission start is detected.",
+    "type": "object",
+    "properties": {
+        "event_id": {
+            "type": "string"
+        },
+        "drone_id": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "number"
+        },
+        "trigger": {
+            "type": "string",
+            "enum": [
+                "MOVEMENT",
+                "ARMING",
+                "MANUAL"
+            ]
+        },
+        "mission_plan": {
+            "$ref": "mission.json"
+        },
+        "start_location": {
+            "type": "object",
+            "properties": {
+                "lat": {
+                    "type": "number"
+                },
+                "lon": {
+                    "type": "number"
+                },
+                "alt": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "lat",
+                "lon"
+            ]
+        },
+        "context": {
+            "type": "object",
+            "properties": {
+                "firmware": {
+                    "type": "object",
+                    "properties": {
+                        "version": {
+                            "type": "string"
+                        },
+                        "hash": {
+                            "type": "string"
+                        },
+                        "board": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": [
+                            "number",
+                            "string"
+                        ]
+                    },
+                    "description": "Key-value pairs of critical parameters (RTL_ALT, etc)"
+                },
+                "geofence": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "lat": {
+                                "type": "number"
+                            },
+                            "lon": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "required": [
+        "event_id",
+        "drone_id",
+        "timestamp",
+        "trigger",
+        "start_location"
+    ]
+}
