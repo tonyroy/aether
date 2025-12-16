@@ -77,6 +77,36 @@ class AwsMqttConnection:
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.info(f"Published status to {topic}: {status}")
+
+    def publish_mission_plan(self, plan: dict):
+        topic = f"mav/{self.client_id}/mission/detected"
+        message = json.dumps(plan)
+        self.connection.publish(
+            topic=topic,
+            payload=message,
+            qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        logger.info(f"Published detected mission to {topic}")
+
+    def publish_context_firmware(self, context: dict):
+        topic = f"mav/{self.client_id}/context/firmware"
+        message = json.dumps(context)
+        self.connection.publish(
+            topic=topic,
+            payload=message,
+            qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        logger.info(f"Published firmware context to {topic}")
+
+    def publish_context_param(self, context: dict):
+        topic = f"mav/{self.client_id}/context/param"
+        message = json.dumps(context)
+        self.connection.publish(
+            topic=topic,
+            payload=message,
+            qos=mqtt.QoS.AT_LEAST_ONCE
+        )
+        logger.debug(f"Published param context to {topic}")
     
     def sync_shadow(self, state: dict):
         """Update Device Shadow with current drone state (reported)"""
@@ -227,6 +257,24 @@ class LocalMqttConnection:
         message = json.dumps(status)
         self.client.publish(topic, message)
         logger.info(f"Published status to {topic}: {status}")
+
+    def publish_mission_plan(self, plan: dict):
+        topic = f"mav/{self.client_id}/mission/detected"
+        message = json.dumps(plan)
+        self.client.publish(topic, message)
+        logger.info(f"Published detected mission to {topic}")
+
+    def publish_context_firmware(self, context: dict):
+        topic = f"mav/{self.client_id}/context/firmware"
+        message = json.dumps(context)
+        self.client.publish(topic, message)
+        logger.info(f"Published firmware context to {topic}")
+
+    def publish_context_param(self, context: dict):
+        topic = f"mav/{self.client_id}/context/param"
+        message = json.dumps(context)
+        self.client.publish(topic, message)
+        logger.debug(f"Published param context to {topic}")
 
     def subscribe_command(self, callback):
         self.command_callback = callback

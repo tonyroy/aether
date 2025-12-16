@@ -310,4 +310,27 @@ class MavlinkConnection:
         )
         logger.info("Requested HOME_POSITION")
 
+    def request_autopilot_version(self):
+        """Requests AUTOPILOT_VERSION (msg #148)."""
+        self.send_command_long(
+            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+            mavutil.mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION, 
+            0, 0, 0, 0, 0, 0
+        )
+        logger.info("Requested AUTOPILOT_VERSION")
+
+    def request_param(self, param_id: str):
+        """Requests a single parameter by ID."""
+        if not self.master:
+            return
+        
+        # PARAM_REQUEST_READ
+        self.master.mav.param_request_read_send(
+            self.master.target_system,
+            self.master.target_component,
+            param_id.encode('utf-8'),
+            -1 # param_index (-1 means use param_id)
+        )
+        logger.info(f"Requested param: {param_id}")
+
 
