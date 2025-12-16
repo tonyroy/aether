@@ -2,7 +2,7 @@ import math
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, Literal
-from .telemetry import TelemetrySample
+from .telemetry import DroneState
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ class DetectorState:
     This mimics the 'Variables' in AWS IoT Events.
     """
     state_name: DetectorStateName = "IDLE"
-    start_sample: Optional[TelemetrySample] = None
-    home_position: Optional[TelemetrySample] = None
+    start_sample: Optional[DroneState] = None
+    home_position: Optional[DroneState] = None
     last_processed_timestamp: float = 0.0
 
 class MissionDetector:
@@ -30,11 +30,12 @@ class MissionDetector:
     MIN_DISTANCE_M = 10
     
     @staticmethod
-    def evaluate(current_state: DetectorState, sample: TelemetrySample) -> Tuple[DetectorState, Optional[str]]:
+    def evaluate(current_state: DetectorState, sample: DroneState) -> Tuple[DetectorState, Optional[str]]:
         """
         Transition function: (State, Input) -> (NewState, Event)
         Event can be: 'MISSION_STARTED', 'MISSION_ENDED', or None.
         """
+        logger.info(f"Processing sample: {sample}")
         if not sample.timestamp:
             return current_state, None
             
@@ -119,7 +120,7 @@ class MissionDetector:
         return current_state, None
 
     @staticmethod
-    def _calculate_distance(s1: TelemetrySample, s2: TelemetrySample) -> float:
+    def _calculate_distance(s1: DroneState, s2: DroneState) -> float:
         if s1.lat is None or s1.lon is None or s2.lat is None or s2.lon is None:
             return 0.0
         # Euclidean approx for short distances (sufficient for 10m check)

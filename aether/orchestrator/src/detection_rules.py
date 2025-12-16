@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import math
 try:
-    from aether_common.telemetry import TelemetrySample
+    from aether_common.telemetry import DroneState
 except ImportError:
     # Fallback/Mock if common not installed yet (or during initial dev setup)
     # But ideally strictly rely on it.
@@ -19,7 +19,7 @@ class SessionDetector:
             "timeout_after_disarm_sec": 600.0
         }
 
-    def check_mission_start(self, start_sample: TelemetrySample, current_sample: TelemetrySample) -> bool:
+    def check_mission_start(self, start_sample: DroneState, current_sample: DroneState) -> bool:
         """
         Determines if a 'Candidate Session' (e.g. Armed) has matured into 
         a 'Confirmed Mission' based on duration and movement.

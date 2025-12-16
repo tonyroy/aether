@@ -1,9 +1,9 @@
 import pytest
 from aether_common.detection import MissionDetector, DetectorState
-from aether_common.telemetry import TelemetrySample, TelemetryType
+from aether_common.telemetry import DroneState, TelemetryType
 
 def create_sample(timestamp: float, armed: bool, lat: float, lon: float):
-    return TelemetrySample(
+    return DroneState(
         type=TelemetryType.HEARTBEAT,
         timestamp=timestamp,
         armed=armed,
@@ -85,7 +85,7 @@ def test_candidate_ignores_partial_updates():
     state = DetectorState("CANDIDATE", start_sample=start)
     
     # WHEN: Update with NO armed status (e.g. just Position)
-    sample = TelemetrySample(
+    sample = DroneState(
         type=TelemetryType.GLOBAL_POSITION_INT,
         timestamp=110.0,
         lat=0.0,
@@ -124,7 +124,7 @@ def test_candidate_backfills_position():
 def test_candidate_uses_home_position_fallback():
     # GIVEN: Home Position Known
     state = DetectorState("IDLE")
-    home = TelemetrySample(
+    home = DroneState(
         type=TelemetryType.HOME_POSITION, 
         timestamp=90.0, 
         lat=0.0, lon=0.0, alt=0.0,

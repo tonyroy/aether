@@ -11,7 +11,7 @@ from temporalio.client import Client
 import paho.mqtt.client as mqtt
 
 # Reuse existing schema/logic where possible
-from aether_common.telemetry import TelemetrySample
+from aether_common.telemetry import DroneState
 
 # If we can't import this easily from tools, we'll redefine or fix path
 # For now, assuming virtualenv has aether-common installed
@@ -37,7 +37,7 @@ class DroneStateWrapper:
         self.drone_id = drone_id
         self.state = DetectorState() # Initial IDLE
 
-    def process(self, sample: TelemetrySample) -> bool:
+    def process(self, sample: DroneState) -> bool:
         """
         Delegates checking to MissionDetector pure logic.
         Returns True if MISSION_STARTED event occurred.
@@ -86,7 +86,7 @@ async def main():
             payload = json.loads(msg.payload)
             
             # Use shared model
-            sample = TelemetrySample.from_dict(payload)
+            sample = DroneState.from_dict(payload)
             if not sample.timestamp: 
                 sample.timestamp = time.time()
             

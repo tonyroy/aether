@@ -2,11 +2,8 @@ import logging
 import asyncio
 from typing import Optional
 from .mavlink import MavlinkConnection
-try:
-    from aether_common.telemetry import TelemetrySample
-except ImportError:
-    # Fallback or error if common not installed
-    pass
+
+from aether_common.telemetry import DroneState
 
 logger = logging.getLogger(__name__)
 
@@ -123,16 +120,15 @@ class CloudBridge:
                         }
                         
                         if self.mqtt:
-                            self.mqtt.publish_topic(f"mav/{self.mavlink.drone_id}/mission/detected", plan_payload)
+                            self.mqtt.publish_mission_plan(plan_payload)
                         else:
                             logger.info(f"Detected Plan: {plan_payload}")
-            # --------------------------------------
             
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
-                sample = TelemetrySample(
+                sample = DroneState(
                     type='GLOBAL_POSITION_INT',
-                    # timestamp will be defaulted or set if needed
+                    timestamp=time.time(),
                     lat=msg.lat / 1e7,
                     lon=msg.lon / 1e7,
                     alt=msg.alt / 1000.0,
@@ -143,6 +139,7 @@ class CloudBridge:
                     hdg=msg.hdg / 100.0
                 )
                 payload = sample.to_dict()
+                payload['timestamp'] = time.time()
 
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
@@ -157,13 +154,15 @@ class CloudBridge:
                 }
             
             elif msg_type == 'ATTITUDE':
-                sample = TelemetrySample(
+                sample = DroneState(
                     type='ATTITUDE',
+                    timestamp=time.time(),
                     roll=msg.roll,
                     pitch=msg.pitch,
                     yaw=msg.yaw
                 )
                 payload = sample.to_dict()
+                payload['timestamp'] = time.time()
                 
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
@@ -181,13 +180,15 @@ class CloudBridge:
                 
                 is_armed = self.mavlink.master.motors_armed()
                 
-                sample = TelemetrySample(
+                sample = DroneState(
                     type='HEARTBEAT',
+                    timestamp=time.time(),
                     mode=mode_name,
                     armed=is_armed,
                     system_status=msg.system_status
                 )
                 payload = sample.to_dict()
+                payload['timestamp'] = time.time()
 
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
@@ -198,24 +199,55 @@ class CloudBridge:
                 
                 # Check for transition to ARMED
                 # Store previous state in self if needed, buy for now simple edge detection
-                # We don't have previous state easily here without class member.
-                # Let's rely on the fact that requesting it multiple times is harmless.
                 if is_armed and hasattr(self, '_last_armed_state') and not self._last_armed_state:
-                     logger.info("Drone ARMED - Requesting Home Position")
+                     logger.info("Drone ARMED - Triggering Context Refresh")
                      self.mavlink.request_home_position()
+                     self.mavlink.request_autopilot_version() # [NEW] Fetch Version
+                     # [NEW] Fetch Critical Params
+                     for param in ["RTL_ALT", "FENCE_ACTION", "FENCE_ENABLE", "FLTMODE_CH"]:
+                         self.mavlink.request_param(param)
                 
                 self._last_armed_state = is_armed
                 shadow_state['armed'] = is_armed
 
+            # --- Context Messages ---
+            elif msg_type == 'AUTOPILOT_VERSION':
+                # Parse and publish firmware context
+                context = {
+                    "flight_sw_version": msg.flight_sw_version,
+                    "board_version": msg.board_version,
+                    "flight_custom_version": bytes(msg.flight_custom_version).hex() # Git Hash usually
+                }
+                if self.mqtt:
+                    self.mqtt.publish_context_firmware(context)
+                else:
+                    logger.info(f"Context (Firmware): {context}")
+
+            elif msg_type == 'PARAM_VALUE':
+                # Publish individual param updates
+                param_id = msg.param_id
+                param_value = msg.param_value
+                context = {
+                    "param_id": param_id,
+                    "param_value": param_value,
+                    "param_type": msg.param_type
+                }
+                if self.mqtt:
+                    self.mqtt.publish_context_param(context)
+                else:
+                    logger.info(f"Context (Param): {param_id}={param_value}")
+
             elif msg_type == 'HOME_POSITION':
-                sample = TelemetrySample(
+                sample = DroneState(
                     type='HOME_POSITION',
+                    timestamp=time.time(),
                     lat=msg.latitude / 1e7,
                     lon=msg.longitude / 1e7,
                     alt=msg.altitude / 1000.0,
-                    # We can put approach info in other fields if needed, or extend TelemetrySample
+                    # We can put approach info in other fields if needed, or extend DroneState
                 )
                 payload = sample.to_dict()
+                payload['timestamp'] = time.time()
                 
                 if self.mqtt:
                      self.mqtt.publish_telemetry(payload)
@@ -229,12 +261,14 @@ class CloudBridge:
                 }
             
             elif msg_type == 'BATTERY_STATUS':
-                sample = TelemetrySample(
+                sample = DroneState(
                     type='BATTERY_STATUS',
+                    timestamp=time.time(),
                     voltage=msg.voltages[0] / 1000.0 if len(msg.voltages) > 0 else 0,
                     remaining=msg.battery_remaining
                 )
                 payload = sample.to_dict()
+                payload['timestamp'] = time.time()
 
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)

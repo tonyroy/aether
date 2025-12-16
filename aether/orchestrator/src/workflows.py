@@ -61,10 +61,10 @@ class MissionWorkflow:
         return "Mission Complete"
 
 try:
-    from detection_rules import TelemetrySample, SessionDetector
+    from detection_rules import DroneState, SessionDetector
 except ImportError:
     # Fallback for when running from root (e.g. pytest) without src in path
-    from src.detection_rules import TelemetrySample, SessionDetector
+    from src.detection_rules import DroneState, SessionDetector
 
 @workflow.defn
 class SessionRecordingWorkflow:
@@ -97,8 +97,8 @@ class DroneEntityWorkflow:
     def __init__(self):
         self._status = "OFFLINE"
         self._exit = False
-        self._latest_telemetry: TelemetrySample = None
-        self._session_start_sample: TelemetrySample = None
+        self._latest_telemetry: DroneState = None
+        self._session_start_sample: DroneState = None
         self._active_session_handle = None
         
         # Configurable Rules
@@ -107,7 +107,7 @@ class DroneEntityWorkflow:
     @workflow.signal
     def signal_telemetry(self, sample_dict: dict):
         # Convert dict to dataclass safely
-        incoming = TelemetrySample.from_dict(sample_dict)
+        incoming = DroneState.from_dict(sample_dict)
         
         if self._latest_telemetry is None:
             self._latest_telemetry = incoming

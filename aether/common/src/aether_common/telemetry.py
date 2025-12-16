@@ -6,7 +6,7 @@ from .generated import DroneTelemetry, Type
 TelemetryType = Type
 
 @dataclass
-class TelemetrySample(DroneTelemetry):
+class DroneState(DroneTelemetry):
     """
     Unified telemetry model matching schemas/telemetry.json.
     Inherits from auto-generated DroneTelemetry class.

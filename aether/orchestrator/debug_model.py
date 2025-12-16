@@ -1,4 +1,4 @@
-from aether_common.telemetry import TelemetrySample, TelemetryType
+from aether_common.telemetry import DroneState, TelemetryType
 import json
 from dataclasses import asdict
 
@@ -8,7 +8,7 @@ data = {"timestamp": 1000.0, "armed": True, "lat": 0.0, "lon": 0.0, "alt": 0.0}
 print(f"Input: {data}")
 
 try:
-    sample = TelemetrySample.from_dict(data)
+    sample = DroneState.from_dict(data)
     print(f"Output: {sample}")
     print(f"Type: {sample.type}")
     
