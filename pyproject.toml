@@ -29,3 +29,21 @@ members = [
 # We need aether-common to be available to top-level scripts
 [tool.uv.sources]
 aether-common = { workspace = true }
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "aether/common/src",
+    "aether/orchestrator/src",
+    "aether/cloud-bridge/src"
+]
+testpaths = [
+    "aether/common/tests",
+    "aether/orchestrator/tests",
+    # "aether/cloud-bridge/tests" # Bridge tests might need their own venv or docker context?
+    # Actually bridge context tests should run if bridge code is in pythonpath
+]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]

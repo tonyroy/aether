@@ -123,6 +123,7 @@ def main():
 
         bridge_cmd.extend([
             "-v", f"{os.getcwd()}/certs:/app/certs:ro",
+            "-v", f"{os.getcwd()}/aether/cloud-bridge/src:/app/bridge/src:ro",
             "-e", f"IOT_ENDPOINT={iot_endpoint}",
             "-e", f"IOT_CERT=/app/certs/{drone_id}/certificate.pem",
             "-e", f"IOT_KEY=/app/certs/{drone_id}/private.key",
