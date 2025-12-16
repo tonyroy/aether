@@ -1,4 +1,5 @@
 import logging
+
 from pymavlink import mavutil
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class MissionManager:
         """Converts JSON MissionPlan to MAVLink Mission Items."""
         items = []
         waypoints = plan.get('waypoints', [])
-        
+
         for wp in waypoints:
             # 1. OPTIONAL: Speed Change
             if 'speed' in wp:
@@ -56,7 +57,7 @@ class MissionManager:
             # 3. REQUIRED: Waypoint or Command
             # Default to MAV_CMD_NAV_WAYPOINT (16)
             cmd = 16
-            
+
             wp_type = wp.get('type', 'WAYPOINT')
             if wp_type == 'TAKEOFF':
                 cmd = 22 # MAV_CMD_NAV_TAKEOFF
@@ -73,7 +74,7 @@ class MissionManager:
                 param1=wp.get('hold_time', 0)
             )
             items.append(item)
-            
+
         return items
 
     def convert_fence_to_items(self, plan):
@@ -122,28 +123,28 @@ class MissionManager:
         self.current_mission_items[mission_type] = items
 
         logger.info(f"Uploading {count} items for type {mission_type}...")
-        
+
         self.mavlink.mav.mission_count_send(
             self.mavlink.target_system,
             self.mavlink.target_component,
             count,
             mission_type
         )
-        
+
     def on_mavlink_message(self, msg):
         """Processes incoming MAVLink messages for mission protocol."""
         msg_type = msg.get_type()
-        
+
         if msg_type == 'MISSION_REQUEST':
             # Handle request for specific item
             seq = msg.seq
             mission_type = getattr(msg, 'mission_type', 0) # Default to 0 if not present (MAVLink 1)
-            
+
             items = self.current_mission_items.get(mission_type)
             if items and seq < len(items):
                 item = items[seq]
                 logger.debug(f"Sending MISSION_ITEM {seq} type {mission_type} command {item.command}")
-                
+
                 # Send item
                 # Using mission_item_int_send for better precision
                 self.mavlink.mav.mission_item_int_send(

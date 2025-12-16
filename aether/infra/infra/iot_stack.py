@@ -1,10 +1,12 @@
+
 from aws_cdk import (
-    Stack,
-    aws_iot as iot,
     CfnOutput,
+    Stack,
+)
+from aws_cdk import (
+    aws_iot as iot,
 )
 from constructs import Construct
-import json
 
 
 class IoTStack(Stack):
@@ -117,8 +119,8 @@ class IoTStack(Stack):
         )
 
         # Enable Fleet Indexing (Registry + Shadow + Connectivity)
-        from aws_cdk.custom_resources import AwsCustomResource, AwsCustomResourcePolicy, AwsSdkCall, PhysicalResourceId
         from aws_cdk.aws_iam import PolicyStatement
+        from aws_cdk.custom_resources import AwsCustomResource, AwsCustomResourcePolicy, AwsSdkCall, PhysicalResourceId
 
         self.fleet_indexing = AwsCustomResource(
             self, "FleetIndexing",

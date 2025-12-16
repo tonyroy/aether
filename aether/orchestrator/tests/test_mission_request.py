@@ -2,7 +2,9 @@ import pytest
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
-from src.workflows import MissionRequestWorkflow, MissionRequest
+
+from src.workflows import MissionRequest, MissionRequestWorkflow
+
 
 @pytest.mark.asyncio
 async def test_mission_request_flow_success():
@@ -10,7 +12,7 @@ async def test_mission_request_flow_success():
     Scenario: User submits a request, it is planned, a drone is found immediately, and dispatched.
     """
     async with await WorkflowEnvironment.start_time_skipping() as env:
-        
+
         # --- Mocks ---
         @activity.defn(name="plan_mission")
         async def mock_plan(request: MissionRequest) -> dict:
@@ -38,7 +40,7 @@ async def test_mission_request_flow_success():
                 id="req-123",
                 task_queue="mission-queue",
             )
-            
+
             result = await handle.result()
             assert result == "mission_started"
 
@@ -50,10 +52,10 @@ async def test_mission_request_queuing():
     The workflow should RETRY finding a drone until one becomes available.
     """
     async with await WorkflowEnvironment.start_time_skipping() as env:
-        
+
         # --- Mocks ---
         find_attempts = 0
-        
+
         @activity.defn(name="plan_mission")
         async def mock_plan(request: MissionRequest) -> dict:
             return {"mission_id": "queue-123"}
@@ -84,8 +86,8 @@ async def test_mission_request_queuing():
                 id="req-queue",
                 task_queue="mission-queue",
             )
-            
+
             await handle.result()
-            
+
             # Implementation detail: Workflow should set RetryPolicy on this activity
             assert find_attempts == 3

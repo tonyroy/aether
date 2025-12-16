@@ -1,10 +1,11 @@
 import asyncio
-import boto3
 import os
+
+import boto3
+from dotenv import load_dotenv
 from temporalio.client import Client
 from temporalio.common import WorkflowIDReusePolicy
 from workflows import DroneEntityWorkflow
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -21,7 +22,7 @@ async def main():
 
     print(f"Found {len(things)} things in AWS IOT registry.")
 
-    # 2. Connect to Temporal 
+    # 2. Connect to Temporal
     temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
     client = await Client.connect(temporal_addr)
 

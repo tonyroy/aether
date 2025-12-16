@@ -1,10 +1,10 @@
-import logging
-import json
 import asyncio
-import time
+import json
+import logging
+
 import paho.mqtt.client as mqtt_paho
-from awscrt import io, mqtt, auth, http
-from awsiot import mqtt_connection_builder, iotshadow
+from awscrt import io, mqtt
+from awsiot import iotshadow, mqtt_connection_builder
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class AwsMqttConnection:
     def connect(self):
         # Get the event loop - use get_event_loop() which works from any context
         self.loop = asyncio.get_event_loop()
-        
+
         logger.info(f"Connecting to AWS IoT at {self.endpoint} with client ID {self.client_id}...")
         event_loop_group = io.EventLoopGroup(1)
         host_resolver = io.DefaultHostResolver(event_loop_group)
@@ -42,7 +42,7 @@ class AwsMqttConnection:
         connect_future = self.connection.connect()
         connect_future.result()
         logger.info(f"Connected to AWS IoT at {self.endpoint}")
-        
+
         # Initialize Shadow client
         self.shadow_client = iotshadow.IotShadowClient(self.connection)
         logger.info("Shadow client initialized")
@@ -56,7 +56,7 @@ class AwsMqttConnection:
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.debug(f"Published to {topic}: {payload}")
-    
+
     def publish_topic(self, topic: str, payload: dict):
         """Generic publish"""
         message = json.dumps(payload)
@@ -66,7 +66,7 @@ class AwsMqttConnection:
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.debug(f"Published to {topic}: {payload}")
-    
+
     def publish_status(self, status: dict):
         """Publish command status (success/failure)"""
         topic = f"mav/{self.client_id}/status"
@@ -107,13 +107,13 @@ class AwsMqttConnection:
             qos=mqtt.QoS.AT_LEAST_ONCE
         )
         logger.debug(f"Published param context to {topic}")
-    
+
     def sync_shadow(self, state: dict):
         """Update Device Shadow with current drone state (reported)"""
         if not self.shadow_client:
             logger.warning("Shadow client not initialized")
             return
-        
+
         try:
             request = iotshadow.UpdateShadowRequest(
                 thing_name=self.client_id,
@@ -121,7 +121,7 @@ class AwsMqttConnection:
                     reported=state
                 )
             )
-            
+
             future = self.shadow_client.publish_update_shadow(
                 request=request,
                 qos=mqtt.QoS.AT_LEAST_ONCE
@@ -130,13 +130,13 @@ class AwsMqttConnection:
             logger.debug(f"Updated shadow for {self.client_id}")
         except Exception as e:
             logger.error(f"Failed to update shadow: {e}")
-    
+
     def subscribe_shadow_delta(self, callback):
         """Subscribe to Shadow delta (desired state changes for commands)"""
         if not self.shadow_client:
             logger.warning("Shadow client not initialized")
             return
-        
+
         def on_shadow_delta_updated(delta):
             try:
                 if delta.state:
@@ -148,12 +148,12 @@ class AwsMqttConnection:
                         callback(delta.state)
             except Exception as e:
                 logger.error(f"Error processing shadow delta: {e}")
-        
+
         try:
             request = iotshadow.ShadowDeltaUpdatedSubscriptionRequest(
                 thing_name=self.client_id
             )
-            
+
             future, _ = self.shadow_client.subscribe_to_shadow_delta_updated_events(
                 request=request,
                 qos=mqtt.QoS.AT_LEAST_ONCE,
@@ -167,7 +167,7 @@ class AwsMqttConnection:
     def subscribe_command(self, callback):
         topic = f"mav/{self.client_id}/cmd"
         logger.info(f"Subscribing to {topic}")
-        
+
         def on_message_received(topic, payload, dup, qos, retain, **kwargs):
             try:
                 decoded = json.loads(payload.decode('utf-8'))
@@ -190,7 +190,7 @@ class AwsMqttConnection:
     def subscribe_mission(self, callback):
         topic = f"mav/{self.client_id}/mission"
         logger.info(f"Subscribing to {topic}")
-        
+
         def on_message_received(topic, payload, dup, qos, retain, **kwargs):
             try:
                 decoded = json.loads(payload.decode('utf-8'))
@@ -224,7 +224,7 @@ class LocalMqttConnection:
     def connect(self):
         # Get the event loop - use get_event_loop() which works from any context
         self.loop = asyncio.get_event_loop()
-        
+
         logger.info(f"Connecting to Local MQTT Broker at {self.host}:{self.port}...")
         self.client = mqtt_paho.Client(client_id=self.client_id)
         self.client.on_connect = self._on_connect
@@ -250,7 +250,7 @@ class LocalMqttConnection:
         message = json.dumps(payload)
         self.client.publish(topic, message)
         logger.debug(f"Published to {topic}: {payload}")
-    
+
     def publish_status(self, status: dict):
         """Publish command status (success/failure)"""
         topic = f"mav/{self.client_id}/status"

@@ -1,7 +1,6 @@
 import asyncio
 import json
-import time
-import random
+
 
 # Simulates a drone sending telemetry patterns
 class TelemetrySimulator:
@@ -23,7 +22,7 @@ class TelemetrySimulator:
 
     async def run_pattern(self, pattern_name: str):
         print(f"--- Running Pattern: {pattern_name} ---")
-        
+
         if pattern_name == "false_start":
             # Arm -> Wait 10s -> Disarm
             self.state["armed"] = True
@@ -34,18 +33,18 @@ class TelemetrySimulator:
                 await self.emit()
             self.state["armed"] = False
             await self.emit()
-            
+
         elif pattern_name == "mission_success":
             # Arm -> Takeoff -> Fly (Move) -> Land -> Disarm
             self.state["armed"] = True
             await self.emit()
-            
+
             # Takeoff
             for i in range(5):
                 self.state["alt"] += 2.0
                 await asyncio.sleep(1)
                 await self.emit()
-                
+
             # Fly
             for i in range(35): # > 30s threshold
                 self.state["lat"] += 0.0001
@@ -53,13 +52,13 @@ class TelemetrySimulator:
                 self.state["battery"] -= 0.1
                 await asyncio.sleep(1)
                 await self.emit()
-                
+
             # Land
             while self.state["alt"] > 0:
                 self.state["alt"] -= 1.0
                 await asyncio.sleep(1)
                 await self.emit()
-                
+
             self.state["armed"] = False
             await self.emit()
 

@@ -1,10 +1,8 @@
-import argparse
 import os
 import sys
 import threading
-import time
-import json
-from awscrt import io, mqtt, auth, http
+
+from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
 from dotenv import load_dotenv
 
@@ -12,6 +10,7 @@ load_dotenv()
 
 # Configure logging
 import logging
+
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ def main():
         load_dotenv(".env")
     else:
         print("Warning: .env not found in CWD. Relying on default load_dotenv search or system env vars.")
-    
+
     endpoint = os.getenv("IOT_ENDPOINT")
     cert = os.getenv("IOT_CERT")
     key = os.getenv("IOT_KEY")
@@ -38,9 +37,9 @@ def main():
     # Calculate absolute paths if they are relative to orchestrator/src
     # or just assume user runs from root or orchestrator
     # We'll just define them relative to CWD or absolute
-    
+
     print(f"Connecting to {endpoint}...")
-    
+
     event_loop_group = io.EventLoopGroup(1)
     host_resolver = io.DefaultHostResolver(event_loop_group)
     client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
@@ -52,7 +51,7 @@ def main():
         client_bootstrap=client_bootstrap,
         ca_filepath=root_ca,
         # Use a random client ID to avoid kicking off other clients
-        client_id=f"orchestrator",
+        client_id="orchestrator",
         clean_session=True,
         keep_alive_secs=6
     )

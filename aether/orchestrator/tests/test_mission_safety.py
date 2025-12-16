@@ -3,6 +3,7 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
+
 from src.workflows import MissionWorkflow
 
 # TDD Spec for Pre-flight Safety Checks
@@ -14,7 +15,7 @@ async def test_mission_safety_battery_failure():
     Expectation: Workflow fails (or raises ApplicationError) BEFORE Arming.
     """
     async with await WorkflowEnvironment.start_time_skipping() as env:
-        
+
         # Mocks
         @activity.defn(name="check_preflight")
         async def mock_check(drone_id: str, constraints: dict) -> bool:
@@ -42,7 +43,7 @@ async def test_mission_safety_battery_failure():
                 "constraints": {"min_battery_start": 30},
                 "waypoints": []
             }
-            
+
             with pytest.raises(Exception) as excinfo:
                 await env.client.execute_workflow(
                     MissionWorkflow.run,
@@ -50,7 +51,7 @@ async def test_mission_safety_battery_failure():
                     id="safety-test",
                     task_queue="mission-queue",
                 )
-            
+
             # Check cause
             assert excinfo.value.cause is not None
             assert excinfo.value.cause.cause is not None

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import subprocess
 import sys
-import os
-import time
+
 
 def run_command(cmd, shell=False):
     """Run a shell command and print output/error if it fails."""
@@ -28,7 +28,7 @@ def main():
     parser.add_argument("-a", "--aws", action="store_true", help="Enable AWS IoT Core mode")
     parser.add_argument("--endpoint", type=str, default="alddhtwebpu3w-ats.iot.ap-southeast-2.amazonaws.com", help="AWS IoT Endpoint")
     parser.add_argument("--limit-logs", action="store_true", help="Limit SITL logs to ~10MB and auto-rotate")
-    
+
     args = parser.parse_args()
 
     # Configuration
@@ -65,7 +65,7 @@ def main():
     print("Launching SITL...")
     # Remove existing container if it exists
     run_command(f"docker rm -f {sitl_name} 2>/dev/null || true", shell=True)
-    
+
     sitl_cmd = [
         "docker", "run", "-d",
         "--name", sitl_name,
@@ -87,14 +87,14 @@ def main():
         # So we use ~15MB of logs.
         sitl_cmd.insert(3, "--tmpfs")
         sitl_cmd.insert(4, "/home/ardupilot/ardupilot/logs:size=20M")
-        
+
         # Inject params via CUSTOM_PARAMS
         # LOG_FILE_MB_FREE=5 (Leave 5MB free)
         # LOG_DISARMED=0 (Don't log when disarmed)
         # LOG_BACKEND_TYPE=1 (File only)
         sitl_cmd.append("-e")
         sitl_cmd.append("CUSTOM_PARAMS=LOG_FILE_MB_FREE=5,LOG_DISARMED=0,LOG_BACKEND_TYPE=1")
-    
+
     run_command(sitl_cmd)
 
     # 2. Start Cloud Bridge
@@ -113,7 +113,7 @@ def main():
 
     if use_aws:
         print("  Mode: AWS IoT Core")
-        
+
         # Check certificates
         cert_path = os.path.join(os.getcwd(), "certs", drone_id)
         if not os.path.exists(cert_path):
@@ -127,7 +127,7 @@ def main():
             "-e", f"IOT_ENDPOINT={iot_endpoint}",
             "-e", f"IOT_CERT=/app/certs/{drone_id}/certificate.pem",
             "-e", f"IOT_KEY=/app/certs/{drone_id}/private.key",
-            "-e", f"IOT_ROOT_CA=/app/certs/AmazonRootCA1.pem"
+            "-e", "IOT_ROOT_CA=/app/certs/AmazonRootCA1.pem"
         ])
     else:
         print("  Mode: Local MQTT (mosquitto)")

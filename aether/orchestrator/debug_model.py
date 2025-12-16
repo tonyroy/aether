@@ -1,6 +1,5 @@
+
 from aether_common.telemetry import DroneState, TelemetryType
-import json
-from dataclasses import asdict
 
 print("Import successful")
 
@@ -11,7 +10,7 @@ try:
     sample = DroneState.from_dict(data)
     print(f"Output: {sample}")
     print(f"Type: {sample.type}")
-    
+
     assert sample.type == TelemetryType.HEARTBEAT
     assert sample.armed == True
     print("Assertion passed")

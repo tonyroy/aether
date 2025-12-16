@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from src.dispatcher import FleetDispatcher, NoDroneAvailableError
 from src.workflows import DroneEntityWorkflow
 
@@ -16,10 +18,10 @@ def mock_temporal():
     # But we need async methods to be awaitable.
     # Easiest: Use MagicMock, and make specific async methods AsyncMock?
     # Or keep AsyncMock and overwrite get_workflow_handle?
-    
+
     am = AsyncMock()
     # get_workflow_handle is synchronous in the real SDK, so we must mock it as such
-    am.get_workflow_handle = MagicMock() 
+    am.get_workflow_handle = MagicMock()
     return am
 
 @pytest.fixture
@@ -44,13 +46,13 @@ async def test_dispatch_finds_idle_drone(dispatcher, mock_iot, mock_temporal):
     mock_temporal.get_workflow_handle.return_value = mock_handle
 
     mission = {"id": "mission-123", "waypoints": []}
-    
+
     # Execute
     drone_id = await dispatcher.dispatch_mission(mission)
 
     # Verify
     assert drone_id == "drone-1"
-    
+
     # Verify Query
     mock_iot.search_index.assert_called_once()
     query_arg = mock_iot.search_index.call_args[1]['queryString']

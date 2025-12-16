@@ -1,11 +1,12 @@
-import os
-import logging
-import asyncio
 import argparse
-from src.mavlink import MavlinkConnection
-from src.mqtt import AwsMqttConnection, LocalMqttConnection
+import asyncio
+import logging
+import os
+
 from src.bridge import CloudBridge
+from src.mavlink import MavlinkConnection
 from src.mission import MissionManager
+from src.mqtt import AwsMqttConnection, LocalMqttConnection
 
 # Configure logging
 log_level = os.environ.get('LOG_LEVEL', 'DEBUG').upper()
@@ -15,7 +16,7 @@ async def main():
     parser = argparse.ArgumentParser(description='Aether Cloud Bridge')
     parser.add_argument('--mavlink', default=os.environ.get('MAVLINK_CONNECTION', 'udp:127.0.0.1:14550'), help='MAVLink connection string')
     parser.add_argument('--client_id', default=os.environ.get('IOT_CLIENT_ID', 'test-drone'), help='AWS IoT Thing Name')
-    
+
     # AWS configuration
     parser.add_argument('--endpoint', default=os.environ.get('IOT_ENDPOINT', ''), help='AWS IoT Endpoint URL')
     parser.add_argument('--cert', default=os.environ.get('IOT_CERT', 'certs/certificate.pem.crt'), help='Path to device certificate')
@@ -30,7 +31,7 @@ async def main():
 
     # MAVLink Connection
     mav = MavlinkConnection(args.mavlink)
-    
+
     # Mission Manager
     mission_manager = MissionManager(mav)
 

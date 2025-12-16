@@ -1,9 +1,9 @@
-import logging
 import asyncio
-from typing import Optional
-from .mavlink import MavlinkConnection
+import logging
 
 from aether_common.telemetry import DroneState
+
+from .mavlink import MavlinkConnection
 
 logger = logging.getLogger(__name__)
 
@@ -18,21 +18,21 @@ class CloudBridge:
         """Start the bridge (async version)."""
         logger.info("Starting Cloud Bridge (async mode)...")
         self.running = True
-        
+
         # Connect both ends
         self.mavlink.connect()
         self.mavlink.request_data_stream()
-        
+
         if self.mqtt:
             try:
                 self.mqtt.connect()
-                self.mqtt.subscribe_command(self.on_command_received)                
-                
+                self.mqtt.subscribe_command(self.on_command_received)
+
                 if self.mission_manager:
                     self.mqtt.subscribe_mission(self.on_mission_received)
             except Exception as e:
                 logger.error(f"MQTT connection or subscription failed: {e}")
-        
+
         # Run telemetry loop
         await self.telemetry_loop()
 
@@ -40,18 +40,18 @@ class CloudBridge:
         """Async telemetry processing loop with Shadow sync."""
         import time
         logger.info("Starting async telemetry loop...")
-        
+
         # State tracking for Shadow sync
         last_shadow_update = 0
         shadow_state = {}
-        
+
         while self.running:
             msg = self.mavlink.get_next_message()
-            
+
             if not msg:
                 await asyncio.sleep(0.001)  # Yield control, prevent busy loop
                 continue
-            
+
             msg_type = msg.get_type()
             logger.debug(f"Received MAVLink message: {msg_type}")
 
@@ -68,7 +68,7 @@ class CloudBridge:
             if msg_type == 'MISSION_ACK':
                 # External upload completed? Triger download.
                 # msg.type==0 means MA_MISSION_ACCEPTED
-                if msg.type == 0: 
+                if msg.type == 0:
                     logger.info("Mission Upload Detected (ACK). Triggering sync...")
                     self.mavlink.master.mav.mission_request_list_send(self.mavlink.master.target_system, self.mavlink.master.target_component)
                     self._mission_downloading = True
@@ -101,7 +101,7 @@ class CloudBridge:
                         "z": msg.z        # Alt
                     }
                     self._mission_items.append(item)
-                    
+
                     if len(self._mission_items) < self._mission_expected_count:
                         # Request next
                         next_seq = len(self._mission_items)
@@ -110,20 +110,20 @@ class CloudBridge:
                         # Complete!
                         self._mission_downloading = False
                         logger.info(f"Mission Download Complete ({len(self._mission_items)} items). Publishing...")
-                        
-                        # Construct Payload (using dict for now to avoid importing generated MissionPlan explicitly in this loop context, 
+
+                        # Construct Payload (using dict for now to avoid importing generated MissionPlan explicitly in this loop context,
                         # though ideally we use it. We'll use dict to match existing pattern for simple publishing)
                         plan_payload = {
                             "mission_id": str(time.time()), # Simple ID
                             "timestamp": time.time(),
                             "waypoints": self._mission_items
                         }
-                        
+
                         if self.mqtt:
                             self.mqtt.publish_mission_plan(plan_payload)
                         else:
                             logger.info(f"Detected Plan: {plan_payload}")
-            
+
             # Filter interesting messages
             if msg_type == 'GLOBAL_POSITION_INT':
                 sample = DroneState(
@@ -145,14 +145,14 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"Position: {payload}")
-                
+
                 # Track for Shadow
                 shadow_state['position'] = {
                     'lat': sample.lat,
                     'lon': sample.lon,
                     'alt': sample.relative_alt
                 }
-            
+
             elif msg_type == 'ATTITUDE':
                 sample = DroneState(
                     type='ATTITUDE',
@@ -163,23 +163,23 @@ class CloudBridge:
                 )
                 payload = sample.to_dict()
                 payload['timestamp'] = time.time()
-                
+
                 if self.mqtt:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"Attitude: {payload}")
-            
+
             elif msg_type == 'HEARTBEAT':
                 # Only process heartbeats from the autopilot (compid 1)
                 if msg.get_srcComponent() != 1:
                     continue
-                    
+
                 mode_name = "UNKNOWN"
                 if hasattr(self.mavlink.master, 'flightmode'):
                     mode_name = self.mavlink.master.flightmode
-                
+
                 is_armed = self.mavlink.master.motors_armed()
-                
+
                 sample = DroneState(
                     type='HEARTBEAT',
                     timestamp=time.time(),
@@ -194,9 +194,9 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"Heartbeat: {payload}")
-                
+
                 shadow_state['mode'] = mode_name
-                
+
                 # Check for transition to ARMED
                 # Store previous state in self if needed, buy for now simple edge detection
                 if is_armed and hasattr(self, '_last_armed_state') and not self._last_armed_state:
@@ -206,7 +206,7 @@ class CloudBridge:
                      # [NEW] Fetch Critical Params
                      for param in ["RTL_ALT", "FENCE_ACTION", "FENCE_ENABLE", "FLTMODE_CH"]:
                          self.mavlink.request_param(param)
-                
+
                 self._last_armed_state = is_armed
                 shadow_state['armed'] = is_armed
 
@@ -248,10 +248,10 @@ class CloudBridge:
                 )
                 payload = sample.to_dict()
                 payload['timestamp'] = time.time()
-                
+
                 if self.mqtt:
                      self.mqtt.publish_telemetry(payload)
-                else: 
+                else:
                      logger.info(f"Home Position: {payload}")
 
                 shadow_state['home_position'] = {
@@ -259,7 +259,7 @@ class CloudBridge:
                     'lon': sample.lon,
                     'alt': sample.alt
                 }
-            
+
             elif msg_type == 'BATTERY_STATUS':
                 sample = DroneState(
                     type='BATTERY_STATUS',
@@ -274,9 +274,9 @@ class CloudBridge:
                     self.mqtt.publish_telemetry(payload)
                 else:
                     logger.info(f"Battery: {payload}")
-                
+
                 shadow_state['battery'] = msg.battery_remaining
-            
+
             # Update Shadow every 5 seconds with critical state
             current_time = time.time()
             if current_time - last_shadow_update > 5 and shadow_state:
@@ -291,12 +291,12 @@ class CloudBridge:
         Uses proper async/await for non-blocking command execution.
         """
         import time
-        
+
         cmd = command_data.get('command')
         params = command_data.get('params', [])
-        
+
         logger.info(f"Executing command: {cmd} with params {params}")
-        
+
         # Execute command asynchronously with await
         success = False
         try:
@@ -320,24 +320,24 @@ class CloudBridge:
         except Exception as e:
             logger.error(f"Command {cmd} failed with exception: {e}")
             success = False
-        
+
         # Publish status
         status = {
             "command": cmd,
             "status": "success" if success else "failed",
             "timestamp": time.time()
         }
-        
+
         if self.mqtt:
             self.mqtt.publish_status(status)
-        
+
         logger.info(f"Command {cmd} {'succeeded' if success else 'failed'}")
 
 
     async def on_mission_received(self, mission_data):
         """Handle incoming mission plan."""
         logger.info(f"Received mission plan with {len(mission_data.get('waypoints', []))} waypoints")
-        
+
         if self.mission_manager:
             success = self.mission_manager.upload_mission(mission_data)
             if success:

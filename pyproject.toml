@@ -14,6 +14,7 @@ dependencies = [
     "pymavlink",
     "datamodel-code-generator>=0.25.0",
     "python-dotenv",
+    "ruff", # Added Linter
     "aether-common",
 ]
 
@@ -21,12 +22,8 @@ dependencies = [
 members = [
     "aether/orchestrator", 
     "aether/common",
-    # "aether/cloud-bridge" # Exclude bridge for now as it's a Docker build with requirements.txt
-    # or better: convert bridge to pyproject.toml too? Let's leave it flexible via requirements.txt for now
-    # but tools/ needs packages.
 ]
 
-# We need aether-common to be available to top-level scripts
 [tool.uv.sources]
 aether-common = { workspace = true }
 
@@ -39,11 +36,26 @@ pythonpath = [
 testpaths = [
     "aether/common/tests",
     "aether/orchestrator/tests",
-    # "aether/cloud-bridge/tests" # Bridge tests might need their own venv or docker context?
-    # Actually bridge context tests should run if bridge code is in pythonpath
 ]
 asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::UserWarning",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["aether_common", "src"]

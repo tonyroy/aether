@@ -1,13 +1,13 @@
-import logging
 import json
+import logging
 import time
-import asyncio
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Optional, List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
 import paho.mqtt.client as mqtt
-from aether_common.detection import MissionDetector, DetectorState
-from aether_common.telemetry import DroneState, TelemetryType
-from aether_common.generated import MissionStartedEvent, MissionPlan
+
+from aether_common.detection import DetectorState, MissionDetector
+from aether_common.telemetry import DroneState
 
 # Configuration (Env vars in real life)
 MQTT_BROKER = "localhost"
@@ -51,14 +51,14 @@ class StreamProcessor:
             # Expected topic format: mav/{drone_id}/{type}/...
             if len(topic) < 3:
                 return
-            
+
             drone_id = topic[1]
             msg_type = topic[2]
             payload = json.loads(msg.payload.decode())
 
             if drone_id not in self.drones:
                 self.drones[drone_id] = DroneContext(drone_id=drone_id)
-            
+
             context = self.drones[drone_id]
 
             if msg_type == "telemetry":
@@ -95,21 +95,21 @@ class StreamProcessor:
         # Map string back to Enum if needed
         # Use existing from_dict helper which handles Enum conversion
         sample = DroneState.from_dict(payload)
-        
+
         # Run Detector
         new_state, event = MissionDetector.evaluate(context.detector_state, sample)
-        
+
         if new_state.state_name != context.detector_state.state_name:
             logger.info(f"[{context.drone_id}] State Transition: {context.detector_state.state_name} -> {new_state.state_name}")
-        
+
         context.detector_state = new_state
-        
+
         if event == "MISSION_STARTED":
             self.publish_mission_started(context, sample)
 
     def publish_mission_started(self, context: DroneContext, trigger_sample: DroneState):
         logger.info(f"[{context.drone_id}] !!! MISSION STARTED !!! Emitting Enriched Event.")
-        
+
         # Build Enriched Event
         event_payload = {
             "event_id": str(time.time()),
@@ -128,7 +128,7 @@ class StreamProcessor:
             },
             "mission_plan": context.last_mission_plan
         }
-        
+
         # Publish
         self.client.publish(TOPIC_PUB_EVENT, json.dumps(event_payload))
         logger.info(f"Published to {TOPIC_PUB_EVENT}")

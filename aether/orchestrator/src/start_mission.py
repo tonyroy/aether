@@ -1,10 +1,10 @@
 import asyncio
-import logging
 import os
+
 from temporalio.client import Client
+from temporalio.common import WorkflowIDReusePolicy
 from workflows import MissionWorkflow
 
-from temporalio.common import WorkflowIDReusePolicy
 
 async def main():
     # Connect to client
@@ -14,9 +14,9 @@ async def main():
 
     # Start workflow
     drone_id = "drone-1"
-    
+
     print(f"Starting MissionWorkflow for {drone_id}...")
-    
+
     handle = await client.start_workflow(
         MissionWorkflow.run,
         args=[drone_id, [{"lat": -35.363, "lon": 149.165, "alt": 10}]],
@@ -27,7 +27,7 @@ async def main():
 
     print(f"Started workflow {handle.id}")
     print(f"View at: http://localhost:8080/namespaces/default/workflows/{handle.id}")
-    
+
     # Wait for result
     result = await handle.result()
     print(f"Workflow result: {result}")

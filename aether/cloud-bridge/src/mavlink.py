@@ -1,9 +1,7 @@
-import os
-import time
-import json
-import logging
 import asyncio
-from typing import Optional
+import logging
+import time
+
 from pymavlink import mavutil
 
 logger = logging.getLogger(__name__)
@@ -33,7 +31,7 @@ class MavlinkConnection:
         """Yields MAVLink messages as they arrive."""
         if not self.master:
             raise RuntimeError("MAVLink not connected")
-        
+
         while True:
             msg = self.master.recv_match(blocking=True)
             if msg:
@@ -90,11 +88,11 @@ class MavlinkConnection:
         if not self.master:
             logger.warning("MAVLink not connected, cannot send command")
             return False
-        
+
         # Create Future for this command
         future = asyncio.Future()
         self.pending_commands[command] = future
-        
+
         # Send command
         self.master.mav.command_long_send(
             self.master.target_system,
@@ -104,7 +102,7 @@ class MavlinkConnection:
             param1, param2, param3, param4, param5, param6, param7
         )
         logger.info(f"Sent COMMAND_LONG {command}, awaiting ACK...")
-        
+
         # Wait for ACK with timeout
         try:
             result = await asyncio.wait_for(future, timeout=timeout)
@@ -118,7 +116,7 @@ class MavlinkConnection:
             logger.error(f"Command {command} timed out after {timeout}s")
             self.pending_commands.pop(command, None)
             return False
-    
+
     def handle_command_ack(self, msg):
         """Process COMMAND_ACK message and resolve pending Future.
         
@@ -126,7 +124,7 @@ class MavlinkConnection:
         """
         command = msg.command
         result = msg.result
-        
+
         if command in self.pending_commands:
             future = self.pending_commands.pop(command)
             if not future.done():
@@ -138,7 +136,7 @@ class MavlinkConnection:
     def arm(self):
         """Arms the drone (sync wrapper)."""
         self.send_command_long(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1)
-    
+
     async def arm_async(self) -> bool:
         """Arms the drone (async with ACK)."""
         return await self.send_command_long_async(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1)
@@ -146,7 +144,7 @@ class MavlinkConnection:
     def disarm(self):
         """Disarms the drone (sync wrapper)."""
         self.send_command_long(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0)
-    
+
     async def disarm_async(self) -> bool:
         """Disarms the drone (async with ACK)."""
         return await self.send_command_long_async(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0)
@@ -155,12 +153,12 @@ class MavlinkConnection:
         """Set flight mode (e.g., 'GUIDED', 'AUTO', 'STABILIZE')."""
         if not self.master:
             raise RuntimeError("MAVLink not connected")
-        
+
         # Get mode number from string
         mode_mapping = self.master.mode_mapping()
         if mode.upper() not in mode_mapping:
             raise ValueError(f"Unknown mode: {mode}. Available: {list(mode_mapping.keys())}")
-        
+
         mode_id = mode_mapping[mode.upper()]
         self.master.set_mode(mode_id)
         logger.info(f"Set mode to {mode.upper()}")
@@ -173,10 +171,10 @@ class MavlinkConnection:
         """
         # Switch to GUIDED mode
         self.set_mode('GUIDED')
-        
+
         # Arm
         self.arm()
-        
+
         # Send simple takeoff command (works in GUIDED mode)
         # In GUIDED mode, ArduCopter accepts simple parameters
         self.send_command_long(
@@ -190,7 +188,7 @@ class MavlinkConnection:
             altitude  # param7: altitude
         )
         logger.info(f"Initiated GUIDED takeoff to {altitude}m")
-    
+
     async def guided_takeoff_async(self, altitude: float) -> bool:
         """Async guided takeoff with acknowledgment.
         
@@ -199,26 +197,26 @@ class MavlinkConnection:
         """
         # Switch to GUIDED mode
         self.set_mode('GUIDED')
-        
+
         # Arm (wait for ACK)
         arm_success = await self.arm_async()
         if not arm_success:
             logger.error("Failed to arm for takeoff")
             return False
-        
+
         # Send takeoff command (wait for ACK)
         takeoff_success = await self.send_command_long_async(
             mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
             0, 0, 0, 0, 0, 0, altitude
         )
-        
+
         if takeoff_success:
             logger.info(f"GUIDED takeoff to {altitude}m initiated successfully")
         else:
             logger.error(f"GUIDED takeoff to {altitude}m failed")
-        
+
         return takeoff_success
-    
+
     async def rtl_async(self) -> bool:
         """Return to Launch (async with acknowledgment).
         
@@ -227,14 +225,14 @@ class MavlinkConnection:
         success = await self.send_command_long_async(
             mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH
         )
-        
+
         if success:
             logger.info("RTL command accepted")
         else:
             logger.error("RTL command failed")
-        
+
         return success
-    
+
     async def land_async(self) -> bool:
         """Land at current position (async with acknowledgment).
         
@@ -243,14 +241,14 @@ class MavlinkConnection:
         success = await self.send_command_long_async(
             mavutil.mavlink.MAV_CMD_NAV_LAND
         )
-        
+
         if success:
             logger.info("LAND command accepted")
         else:
             logger.error("LAND command failed")
-        
+
         return success
-    
+
     def takeoff(self, altitude):
         """Takeoff to specified altitude at current position (for mission use).
         
@@ -281,7 +279,7 @@ class MavlinkConnection:
         """Requests data streams from the autopilot."""
         if not self.master:
             return
-        
+
         # Request all data streams at 2 Hz
         # MAV_DATA_STREAM_ALL = 0
         self.master.mav.request_data_stream_send(
@@ -300,7 +298,7 @@ class MavlinkConnection:
         # Option B: Set Mode to AUTO (often more robust for straight mission start)
         # But MAV_CMD_MISSION_START is the precise command.
         # Let's also ensure we arm? No, separate command.
-    
+
     def request_home_position(self):
         """Requests the HOME_POSITION from the drone."""
         # Request message ID 242 (HOME_POSITION)
@@ -314,7 +312,7 @@ class MavlinkConnection:
         """Requests AUTOPILOT_VERSION (msg #148)."""
         self.send_command_long(
             mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
-            mavutil.mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION, 
+            mavutil.mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION,
             0, 0, 0, 0, 0, 0
         )
         logger.info("Requested AUTOPILOT_VERSION")
@@ -323,7 +321,7 @@ class MavlinkConnection:
         """Requests a single parameter by ID."""
         if not self.master:
             return
-        
+
         # PARAM_REQUEST_READ
         self.master.mav.param_request_read_send(
             self.master.target_system,

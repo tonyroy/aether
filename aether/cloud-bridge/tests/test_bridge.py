@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
+
 from src.bridge import CloudBridge
 
 
@@ -65,13 +66,13 @@ async def test_telemetry_loop_global_position(bridge, mock_mavlink, mock_mqtt):
             return msg
         bridge.running = False  # Stop after one message
         return None
-    
+
     mock_mavlink.get_next_message.side_effect = get_next_side_effect
     bridge.running = True
-    
+
     # Run telemetry loop for one iteration
     await bridge.telemetry_loop()
-    
+
     # Verify telemetry was published
     mock_mqtt.publish_telemetry.assert_called_once()
 
@@ -104,7 +105,7 @@ async def test_mission_forwarding(bridge, mock_mavlink, mock_mission_manager):
     # Setup mission request message
     msg = MagicMock()
     msg.get_type.return_value = 'MISSION_REQUEST'
-    
+
     # Configure get_next_message
     call_count = 0
     def get_next_side_effect():
@@ -114,12 +115,12 @@ async def test_mission_forwarding(bridge, mock_mavlink, mock_mission_manager):
             return msg
         bridge.running = False
         return None
-    
+
     mock_mavlink.get_next_message.side_effect = get_next_side_effect
     bridge.running = True
-    
+
     # Run telemetry loop
     await bridge.telemetry_loop()
-    
+
     # Verify message was forwarded
     mock_mission_manager.on_mavlink_message.assert_called_once_with(msg)

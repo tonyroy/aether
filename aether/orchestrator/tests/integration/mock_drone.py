@@ -1,8 +1,8 @@
-import asyncio
 import json
 import logging
 import uuid
-from awscrt import mqtt, io
+
+from awscrt import io, mqtt
 from awsiot import mqtt_connection_builder
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class MockDrone:
         # Create Connection
         # Note: In a real test we might need unique client_ids
         client_id = f"mock-drone-{self.thing_name}-{uuid.uuid4()}"
-        
+
         event_loop_group = io.EventLoopGroup(1)
         host_resolver = io.DefaultHostResolver(event_loop_group)
         client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
@@ -39,7 +39,7 @@ class MockDrone:
             pri_key_filepath=self.key,
             ca_filepath=self.ca,
             client_id=client_id,
-            clean_session=True, 
+            clean_session=True,
             keep_alive_secs=30,
             client_bootstrap=client_bootstrap
         )
@@ -55,7 +55,7 @@ class MockDrone:
             callback=self._on_command
         )
         subscribe_future.result()
-        
+
         # Publish initial Battery/State (Simulate "Connected")
         # We might need to update Shadow manually if the simple "update_shadow_status" activity relies on it?
         # Actually, Entity Workflow updates .orchestrator.status.
@@ -88,11 +88,11 @@ class MockDrone:
         msg = json.loads(payload)
         cmd = msg.get("command")
         logger.info(f"{self.thing_name} received: {cmd}")
-        
+
         # Auto-ACK
-        # In real bridge, it publishes telemetry or ack. 
-        # For MissionWorkflow 'send_command', it just publishes. 
+        # In real bridge, it publishes telemetry or ack.
+        # For MissionWorkflow 'send_command', it just publishes.
         # Ideally we should publish an ACK back if the workflow waited for it.
-        # But currently 'send_command' activity connects, publishes, and returns 'Sent'. 
+        # But currently 'send_command' activity connects, publishes, and returns 'Sent'.
         # It DOES NOT wait for ACK (unless we change it).
         # So we just log it.

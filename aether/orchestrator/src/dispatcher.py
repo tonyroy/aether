@@ -1,5 +1,5 @@
-from awscrt import mqtt
 from src.workflows import DroneEntityWorkflow
+
 
 class NoDroneAvailableError(Exception):
     pass
@@ -16,7 +16,11 @@ class FleetDispatcher:
         """
         # Base Query: connected AND idle AND type=drone
         # Future: Append constraint filters from 'constraints' dict
-        query = "connectivity.connected:true AND shadow.reported.orchestrator.status:IDLE AND attributes.type:aether-drone"
+        query = (
+            "connectivity.connected:true AND "
+            "shadow.reported.orchestrator.status:IDLE AND "
+            "attributes.type:aether-drone"
+        )
 
         # Execute Search
         try:

@@ -1,7 +1,9 @@
+from unittest.mock import MagicMock
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, call
+
 from src.bridge import CloudBridge
+
 
 @pytest.fixture
 def mock_mavlink():
@@ -36,7 +38,7 @@ def bridge(mock_mavlink, mock_mqtt):
 @pytest.mark.asyncio
 async def test_arming_triggers_context_fetch(bridge, mock_mavlink):
     """Test that transitioning from Disarmed to Armed triggers context fetch."""
-    
+
     # 1. Setup HEARTBEAT message (Armed=True)
     msg = MagicMock()
     msg.get_type.return_value = 'HEARTBEAT'
@@ -71,12 +73,12 @@ async def test_arming_triggers_context_fetch(bridge, mock_mavlink):
 @pytest.mark.asyncio
 async def test_autopilot_version_publishing_delegated(bridge, mock_mavlink, mock_mqtt):
     """Test that AUTOPILOT_VERSION messages use the new delegated publish method."""
-    
+
     msg = MagicMock()
     msg.get_type.return_value = 'AUTOPILOT_VERSION'
     msg.flight_sw_version = 12345
     msg.board_version = 1
-    msg.flight_custom_version = [0] * 8 
+    msg.flight_custom_version = [0] * 8
 
     # Mock Loop
     bridge.running = True
@@ -102,7 +104,7 @@ async def test_autopilot_version_publishing_delegated(bridge, mock_mavlink, mock
 @pytest.mark.asyncio
 async def test_param_value_publishing_delegated(bridge, mock_mavlink, mock_mqtt):
     """Test that PARAM_VALUE messages use delegated publish."""
-    
+
     msg = MagicMock()
     msg.get_type.return_value = 'PARAM_VALUE'
     msg.param_id = "RTL_ALT"
@@ -111,7 +113,7 @@ async def test_param_value_publishing_delegated(bridge, mock_mavlink, mock_mqtt)
 
     bridge.running = True
     mock_mavlink.get_next_message.side_effect = [msg, None]
-    
+
     # We need to manually stop loop if it gets None and continues or simple None logic
     # The loop usually waits on None? No, code has sleep(0.001) continue.
     # So we need side_effect to toggle running=False

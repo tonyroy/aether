@@ -1,14 +1,16 @@
-from temporalio.client import Client
 import asyncio
 import os
+
+from temporalio.client import Client
+
 
 async def main():
     temporal_addr = os.getenv("TEMPORAL_SERVICE_ADDRESS", "localhost:7233")
     client = await Client.connect(temporal_addr)
-    
+
     drone_id = "drone-1"
     workflow_id = f"entity-{drone_id}"
-    
+
     print(f"Signaling {workflow_id} to start mission...")
     try:
         handle = client.get_workflow_handle(workflow_id)

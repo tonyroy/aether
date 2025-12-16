@@ -2,6 +2,7 @@
 import subprocess
 import sys
 
+
 def get_docker_containers(filter_name):
     """Get list of container names matching a filter."""
     try:
@@ -9,7 +10,7 @@ def get_docker_containers(filter_name):
         output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
         if not output:
             return []
-        
+
         # Get names for better logging
         ids = output.split()
         names = []
@@ -23,19 +24,19 @@ def get_docker_containers(filter_name):
 
 def main():
     print("🧹 Cleaning up drone environment...")
-    
+
     # 1. Find containers
     sitl_containers = get_docker_containers("sitl-drone-*")
     bridge_containers = get_docker_containers("cloud-bridge-*")
     all_containers = sitl_containers + bridge_containers
-    
+
     if not all_containers:
         print("✅ No drone containers found.")
     else:
         print(f"Found {len(all_containers)} containers:")
         for name in all_containers:
             print(f"  - {name}")
-            
+
         # 2. Kill and remove
         print("\nStopping and removing containers...")
         cmd = f"docker rm -f {' '.join(all_containers)}"

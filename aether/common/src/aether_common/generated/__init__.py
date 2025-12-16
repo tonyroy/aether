@@ -1,6 +1,6 @@
-from .telemetry import DroneTelemetry, Type
+from .events import Context, Firmware, GeofenceItem, MissionStartedEvent, StartLocation, Trigger
 from .mission_plan import MissionPlan, Waypoint
-from .events import MissionStartedEvent, Context, Trigger, StartLocation, Firmware, GeofenceItem
+from .telemetry import DroneTelemetry, Type
 
 # Aliases for backward compatibility with handcrafted code
 DroneState = DroneTelemetry
